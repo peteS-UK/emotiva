@@ -1,10 +1,14 @@
-# Home Assistant to Emotiva Processor service
+# Home Assistant to Emotiva Processor Media Player
 
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
 
-This custom component provides 3 services to Home Assistant to allow for integration with Emotiva XMC-1.  Given that the Emotiva API is common across XMC-1, XMC-2 and RMC-1 is largely common, it should work across these processors as well, but this is untested.  The discover service discovers processors on the local subnet and creates an entity called "emotiva_xmc.processor" and populates a number of attributes on thi entity.  The updates_states service polls the processor for current status volume, power, formats etc..  The send_command allows you to send commands to the processor to update volume, mute, power, input etc..
+This custom component implements a media player entity for Home Assistant to allow for integration with Emotiva processors, tested with the XMC-1.  Given that the Emotiva API is common across XMC-1, XMC-2 and RMC-1 is largely common, it should work across these processors as well, but this is untested.  
+
+Doc WIP
+
+The discover service discovers processors on the local subnet and creates an entity called "emotiva_xmc.processor" and populates a number of attributes on thi entity.  The updates_states service polls the processor for current status volume, power, formats etc..  The send_command allows you to send commands to the processor to update volume, mute, power, input etc..
 
 ## Installation
 
