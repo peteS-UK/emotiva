@@ -1,0 +1,12 @@
+{
+    "domain": "emotiva",
+    "name": "Emotiva Processor Media Player",
+    "codeowners": ["@peteS-UK"],
+    "dependencies": [],
+    "documentation": "https://github.com/peteS-UK/xmc/blob/main/README.md",
+    "iot_class": "local_polling",
+    "issue_tracker": "https://github.com/peteS-UK/xmc/issues",
+    "requirements": ["lxml"],
+    "version": "0.3.0"
+  }
+  

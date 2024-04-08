@@ -1,0 +1,166 @@
+send_command:
+  name: Send Command
+  description: Send command to Emotiva processor
+  target:
+    entity:
+      integration: emotiva
+      domain: media_player
+  fields:
+    Command:
+      name: Command
+      description: "The Command to send to the processor.  You must also specify the Command Value"
+      required: true 
+      selector:
+        select:
+          multiple: false
+          options:
+            - all_stereo
+            - analog1
+            - analog2
+            - analog3
+            - analog4
+            - analog5
+            - analog7.1
+            - ARC
+            - auto
+            - back
+            - back_trim_set
+            - band_am
+            - band_fm
+            - bass_down
+            - bass_up
+            - center
+            - center_trim_set
+            - channel
+            - channel_1
+            - channel_10
+            - channel_11
+            - channel_12
+            - channel_13
+            - channel_14
+            - channel_15
+            - channel_16
+            - channel_17
+            - channel_18
+            - channel_19
+            - channel_2
+            - channel_20
+            - channel_3
+            - channel_4
+            - channel_5
+            - channel_6
+            - channel_7
+            - channel_8
+            - channel_9
+            - coax1
+            - coax2
+            - coax3
+            - coax4
+            - dim
+            - dirac
+            - direct
+            - dolby
+            - down
+            - dts
+            - enter
+            - frequency
+            - front_in
+            - hdmi1
+            - hdmi2
+            - hdmi3
+            - hdmi4
+            - hdmi5
+            - hdmi6
+            - hdmi7
+            - hdmi8
+            - height_trim_set
+            - info
+            - input
+            - input_down
+            - input_up
+            - left
+            - loudness
+            - loudness_off
+            - loudness_on
+            - menu
+            - mode
+            - mode_down
+            - mode_up
+            - movie
+            - music
+            - mute
+            - mute_off
+            - mute_on
+            - optical1
+            - optical2
+            - optical3
+            - optical4
+            - power_off
+            - power_on
+            - preset1
+            - preset2
+            - reference_stereo
+            - right
+            - seek
+            - set_volume
+            - source_1
+            - source_2
+            - source_3
+            - source_4
+            - source_5
+            - source_6
+            - source_7
+            - source_8
+            - source_tuner
+            - speaker_preset
+            - Standby
+            - stereo
+            - subwoofer
+            - subwoofer_trim_set
+            - surround
+            - surround_mode
+            - surround_trim_set
+            - treble_down
+            - treble_up
+            - tuner
+            - up
+            - usb_stream
+            - volume
+            - width_trim_set
+            - zone1_band
+            - zone2_analog1
+            - zone2_analog2
+            - zone2_analog3
+            - zone2_analog4
+            - zone2_analog5
+            - zone2_analog71
+            - zone2_analog8
+            - zone2_ARC
+            - zone2_band
+            - zone2_coax1
+            - zone2_coax2
+            - zone2_coax3
+            - zone2_coax4
+            - zone2_ethernet
+            - zone2_follow_main
+            - zone2_front_in
+            - zone2_input
+            - zone2_mute
+            - zone2_mute_off
+            - zone2_mute_on
+            - zone2_optical1
+            - zone2_optical2
+            - zone2_optical3
+            - zone2_optical4
+            - zone2_power
+            - zone2_power_off
+            - zone2_power_on
+            - zone2_set_volume
+            - zone2_volume
+    Value:
+      name: Command Value
+      description: "The value associated with the command.  For many commands, this is often 0"
+      required: true
+      example: 0
+      selector:
+        text:
