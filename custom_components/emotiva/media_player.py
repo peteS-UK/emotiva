@@ -36,16 +36,18 @@ SERVICE_SEND_COMMAND = "send_command"
 from .const import (
 	CONF_NOTIFICATIONS,
 	CONF_NOTIFY_PORT,
-	CONF_CTRL_PORT
+	CONF_CTRL_PORT,
+	CONF_PROTO_VER
 )
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 	{
-		vol.Required(CONF_HOST): cv.string,
-		vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+		vol.Optional(CONF_HOST): cv.string,
+		vol.Optional(CONF_NAME, default=None): cv.string,
 		vol.Optional(CONF_NOTIFICATIONS, default=None): cv.string,
 		vol.Optional(CONF_CTRL_PORT, default=7002): vol.Coerce(int),
-		vol.Optional(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int)
+		vol.Optional(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int),
+		vol.Optional(CONF_PROTO_VER, default=3.0): vol.Coerce(float)
 	}
 )
 
@@ -61,6 +63,7 @@ SUPPORT_EMOTIVA = (
 
 #import asyncio
 
+
 #def setup_platform(
 #async
 async def async_setup_platform(
@@ -72,17 +75,23 @@ async def async_setup_platform(
 				discovery_info: DiscoveryInfoType | None = None,
 			) -> None:
 
-	from datetime import timedelta
+	#from datetime import timedelta
 
-	SCAN_INTERVAL = timedelta(seconds=20)
+	# = timedelta(seconds=20)
+
+	
 
 	receivers = await hass.async_add_executor_job(Emotiva.discover,3)
-	#receivers = Emotiva.discover(version=3)
 	
+	_configdiscovered = False
+
 	for receiver in receivers:
 
 		_ip, _xml = receiver
 
+		if config[CONF_HOST] == _ip:
+			_configdiscovered = True
+			
 		#emotiva = Emotiva(config[CONF_HOST], _ctrl_port = 7002, _notify_port = 7003)
 		emotiva = Emotiva(_ip, _xml)
 
@@ -91,8 +100,23 @@ async def async_setup_platform(
 
 		emotiva._events = emotiva._events.union(_notify_set)
 		emotiva._current_state.update(dict((m, None) for m in _notify_set))
+	
+		_LOGGER.debug("Adding %s from discovery", _ip)
+	
+		async_add_entities([EmotivaDevice(emotiva, hass)])
 
-		async_add_entities([EmotivaDevice(emotiva)])
+	if _configdiscovered == False and config[CONF_HOST] is not None:
+		_LOGGER.debug("Adding %s:%s from configuration.yaml", config[CONF_HOST]
+				, config[CONF_NAME])
+
+		emotiva = Emotiva(config[CONF_HOST], transp_xml = "", 
+					_ctrl_port = config[CONF_CTRL_PORT], _notify_port = config[CONF_NOTIFY_PORT],
+					_proto_ver = config[CONF_PROTO_VER], _name = config[CONF_NAME])
+		#Get additional notify
+		_notify_set = set(config[CONF_NOTIFICATIONS].split(","))
+		emotiva._events = emotiva._events.union(_notify_set)
+		emotiva._current_state.update(dict((m, None) for m in _notify_set))
+		async_add_entities([EmotivaDevice(emotiva, hass)])
 
 	# Register entity services
 	platform = entity_platform.async_get_current_platform()
@@ -108,9 +132,10 @@ async def async_setup_platform(
 class EmotivaDevice(MediaPlayerEntity):
 	# Representation of a Emotiva Processor
 
-	def __init__(self, device):
+	def __init__(self, device, hass):
 
 		self._device = device
+		self._hass = hass
 		self._entity_id = "media_player.emotivaprocessor"
 		self._unique_id = "emotiva_"+self._device.name.replace(" ","_").replace("-","_").replace(":","_")
 		self._device_class = "receiver"
@@ -196,7 +221,7 @@ class EmotivaDevice(MediaPlayerEntity):
 		_attributes = {}
 
 		for ev in self._device._events:
-			if ev.startswith("input_") == False and  ev.startswith("power") == False:
+			if ev.startswith("power") == False:
 				_attributes[ev] = self._device._current_state[ev]
 		
 		return _attributes
@@ -209,33 +234,54 @@ class EmotivaDevice(MediaPlayerEntity):
 		else:
 			return float("%.2f" % ((self._device.volume-self._device._volume_min)/self._device._volume_range))
 
-	def set_volume_level(self, volume: float) -> None:
+	async def async_set_volume_level(self, volume: float) -> None:
 		_vol = ((volume * self._device._volume_range)+self._device._volume_min)
-		self._device.volume = str(_vol)
+		await self._hass.async_add_executor_job(self._device.send_command,"set_volume",str(_vol))
 
-	def turn_off(self) -> None:
-		self._device.power = False
+	async def async_turn_off(self) -> None:
+		await self._hass.async_add_executor_job(self._device.send_command,"power_off","0")
 
-	def turn_on(self) -> None:
-		self._device.power = True
+	async def async_turn_on(self) -> None:
+		await self._hass.async_add_executor_job(self._device.send_command,"power_on","o")
 
-	def mute_volume(self, mute: bool) -> None:
-		self._device.mute = mute
+	async def async_mute_volume(self, mute: bool) -> None:
+		mute_cmd = {True: 'mute_on', False: 'mute_off'}[mute]
+		# self.send_command(mute_cmd,0)
+		await self._hass.async_add_executor_job(self._device.send_command,mute_cmd,"0")
 
-	def volume_up(self):
-		self._device.volume_up()
+	async def async_volume_up(self):
+		await self._hass.async_add_executor_job(self._device.send_command,"volume","+1")
 
-	def volume_down(self):
-		self._device.volume_down()
+	async def async_volume_down(self):
+		await self._hass.async_add_executor_job(self._device.send_command,"volume","-1")
 
-	def update(self):
-		self._device._update_status(self._device._events, float(self._device._proto_ver))		
+	#def update(self):
+	#	self._device._update_status(self._device._events, float(self._device._proto_ver))		
 
-	def select_source(self, source: str) -> None:
-		self._device.source = source
+	async def async_update(self):
+		await self._hass.async_add_executor_job(self._device._update_status,self._device._events, float(self._device._proto_ver))
 
-	def select_sound_mode(self, mode: str) -> None:
-		self._device.mode = mode
 
-	def send_command(self, Command, Value):
-		self._device.send_command(Command,Value)
+
+	async def async_select_source(self, source: str) -> None:
+		#self._device.source = source
+		
+		if source not in self._device._sources:
+			_LOGGER.debug('Source "%s" is not a valid input' % source)
+		elif self._device._sources[source] is None:
+			_LOGGER.debug('Source "%s" has bad value (%s)' % (
+					source, self._device._sources[source]))
+		else:
+			await self._hass.async_add_executor_job(self._device.send_command,'source_%d' % self._device._sources[source],"0")
+
+	async def async_select_sound_mode(self, sound_mode: str) -> None:
+		if sound_mode not in self._device._modes:
+			_LOGGER.debug('Mode "%s" does not exist' % sound_mode)
+		elif self._device._modes[sound_mode][0] is None:
+			_LOGGER.debug('Mode "%s" has bad value (%s)' % (
+					sound_mode, self._device._modes[sound_mode][0]))
+		else:
+			await self._hass.async_add_executor_job(self._device.send_command,self._device._modes[sound_mode][0],"0")
+
+	async def send_command(self, Command, Value):
+		await self._hass.async_add_executor_job(self._device.send_command,Command,Value)

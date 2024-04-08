@@ -105,7 +105,7 @@ class Emotiva(object):
 			try:
 				_resp_data, (ip, port) = self._ctrl_sock.recvfrom(4096)
 				#
-				# _LOGGER.debug("Response on ack: %s",_resp_data)
+				_LOGGER.debug("Response on ack: %s",_resp_data)
 				if process_response == True:
 					resp = self._parse_response(_resp_data)
 					self._handle_status(resp)
@@ -120,6 +120,7 @@ class Emotiva(object):
 		self._send_request(msg, ack=True, process_response=False)
 	
 	def __parse_transponder(self, transp_xml):
+		_LOGGER.debug("transp_xml %s", transp_xml)
 		elem = transp_xml.find('name')
 		if elem is not None: self._name = elem.text.strip()
 		elem = transp_xml.find('model')
