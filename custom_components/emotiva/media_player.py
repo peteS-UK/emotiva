@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+import asyncio
 
-DOMAIN = "emotiva"
+from .const import DOMAIN
 
 from .emotiva import Emotiva
 
@@ -16,6 +17,8 @@ from homeassistant.components.media_player import (
 	MediaPlayerEntityFeature,
 	MediaPlayerState
 )
+
+from homeassistant import config_entries, core
 
 from homeassistant.const import CONF_HOST, CONF_NAME
 from homeassistant.core import HomeAssistant
@@ -37,7 +40,9 @@ from .const import (
 	CONF_NOTIFICATIONS,
 	CONF_NOTIFY_PORT,
 	CONF_CTRL_PORT,
-	CONF_PROTO_VER
+	CONF_PROTO_VER,
+	CONF_DISCOVER,
+	CONF_MANUAL
 )
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
@@ -61,26 +66,90 @@ SUPPORT_EMOTIVA = (
 	| MediaPlayerEntityFeature.SELECT_SOUND_MODE 
 )
 
-#import asyncio
+async def async_setup_entry(
+	hass: core.HomeAssistant,
+	config_entry: config_entries.ConfigEntry,
+	async_add_entities,
+) -> None:
+
+	config = hass.data[DOMAIN][config_entry.entry_id]
+
+	_LOGGER.debug("Host from config %s", config[CONF_HOST])
+
+	if config_entry.options:
+		config.update(config_entry.options)
+		_LOGGER.debug("Option %s", config_entry.options.get(CONF_NOTIFICATIONS))
+
+	receivers = []
+
+	if config[CONF_DISCOVER]:
+		receivers = await hass.async_add_executor_job(Emotiva.discover,3)
+		_configdiscovered = False
+		for receiver in receivers:
+
+			_ip, _xml = receiver
+
+			#if config[CONF_HOST] == _ip:
+			#	_configdiscovered = True
+				
+			emotiva = Emotiva(_ip, _xml)
+
+			#Get additional notify
+			if config.get(CONF_NOTIFICATIONS) is not None:
+				_LOGGER.debug("Adding %s",config[CONF_NOTIFICATIONS])
+				_notify_set = set(config[CONF_NOTIFICATIONS].replace(" ","").split(","))
+			else:
+				_notify_set = set()
+
+			emotiva._events = emotiva._events.union(_notify_set)
+			emotiva._current_state.update(dict((m, None) for m in _notify_set))
+		
+			_LOGGER.debug("Adding %s from discovery", _ip)
+
+			async_add_entities([EmotivaDevice(emotiva, hass)])
+
+	if config[CONF_MANUAL] and not any([config[CONF_HOST] in tup for tup in receivers]):
+		_LOGGER.debug("Adding %s:%s from config", config[CONF_HOST]
+				, config[CONF_NAME])
+
+		emotiva = Emotiva(config[CONF_HOST], transp_xml = "", 
+					_ctrl_port = config[CONF_CTRL_PORT], _notify_port = config[CONF_NOTIFY_PORT],
+					_proto_ver = config[CONF_PROTO_VER], _name = config[CONF_NAME])
+
+		#Get additional notify
+		if config.get(CONF_NOTIFICATIONS) is not None:
+			_LOGGER.debug("Adding %s",config[CONF_NOTIFICATIONS])
+			_notify_set = set(config[CONF_NOTIFICATIONS].replace(" ","").split(","))
+		else:
+			_notify_set = set()
+
+			emotiva._events = emotiva._events.union(_notify_set)
+			emotiva._current_state.update(dict((m, None) for m in _notify_set))
 
 
-#def setup_platform(
-#async
+		async_add_entities([EmotivaDevice(emotiva, hass)])
+
+	# Register entity services
+	platform = entity_platform.async_get_current_platform()
+	platform.async_register_entity_service(
+		SERVICE_SEND_COMMAND,
+		{
+			vol.Required("Command"): cv.string,
+			vol.Required("Value"): cv.string,
+		},
+		EmotivaDevice.send_command.__name__,
+	)
+
+
+'''
 async def async_setup_platform(
 				hass: HomeAssistant,
 				config: ConfigType,
-				#add_entities: AddEntitiesCallback,
-				#async
 				async_add_entities: AddEntitiesCallback,
 				discovery_info: DiscoveryInfoType | None = None,
 			) -> None:
-
-	#from datetime import timedelta
-
-	# = timedelta(seconds=20)
-
+#
 	
-
 	receivers = await hass.async_add_executor_job(Emotiva.discover,3)
 	
 	_configdiscovered = False
@@ -92,7 +161,6 @@ async def async_setup_platform(
 		if config[CONF_HOST] == _ip:
 			_configdiscovered = True
 			
-		#emotiva = Emotiva(config[CONF_HOST], _ctrl_port = 7002, _notify_port = 7003)
 		emotiva = Emotiva(_ip, _xml)
 
 		#Get additional notify
@@ -102,7 +170,8 @@ async def async_setup_platform(
 		emotiva._current_state.update(dict((m, None) for m in _notify_set))
 	
 		_LOGGER.debug("Adding %s from discovery", _ip)
-	
+
+
 		async_add_entities([EmotivaDevice(emotiva, hass)])
 
 	if _configdiscovered == False and config[CONF_HOST] is not None:
@@ -118,6 +187,8 @@ async def async_setup_platform(
 		emotiva._current_state.update(dict((m, None) for m in _notify_set))
 		async_add_entities([EmotivaDevice(emotiva, hass)])
 
+		await emotiva.connect_notifier()
+
 	# Register entity services
 	platform = entity_platform.async_get_current_platform()
 	platform.async_register_entity_service(
@@ -128,6 +199,8 @@ async def async_setup_platform(
 		},
 		EmotivaDevice.send_command.__name__,
 	)
+'''
+	
 
 class EmotivaDevice(MediaPlayerEntity):
 	# Representation of a Emotiva Processor
@@ -139,9 +212,38 @@ class EmotivaDevice(MediaPlayerEntity):
 		self._entity_id = "media_player.emotivaprocessor"
 		self._unique_id = "emotiva_"+self._device.name.replace(" ","_").replace("-","_").replace(":","_")
 		self._device_class = "receiver"
+		self._notifier_task = None
 		
-		self._device.connect()
-	
+	async def async_added_to_hass(self):
+		"""Subscribe to device events."""
+		self._device.set_update_cb(self.async_update_callback)
+		# self._hass.async_create_task(self._device.run_notifier())
+		# changed to stop startup hanging
+		self._notifier_task = asyncio.create_task(self._device.run_notifier())
+		await self._device.async_subscribe_events()
+
+	def async_update_callback(self, reason = False):
+		"""Update the device's state."""
+		_LOGGER.debug("Calling async_schedule_update_ha_state")
+		self.async_schedule_update_ha_state()
+		
+
+	async def async_will_remove_from_hass(self) -> None:
+		"""Disconnect device object when removed."""
+		self._device.set_update_cb(None)
+		await self._device.async_unsubscribe_events()
+		try:
+			self._notifier_task.cancel()
+		except:
+			pass
+
+	should_poll = False
+
+	@property
+	def should_poll(self):
+		return False
+
+
 	@property
 	def icon(self):
 		return "mdi:audio-video"
@@ -150,13 +252,13 @@ class EmotivaDevice(MediaPlayerEntity):
 	def name(self):
 		return self._device.name
 
-	@property
-	def device_info(self) -> DeviceInfo:
-		return ({
-				"identifiers":"{("+DOMAIN+", '11223344')}",
-				"manufacturer":"Emotiva",
-				"model":"XMC1",
-				"name":"XMC"})
+	#@property
+	#def device_info(self) -> DeviceInfo:
+	#	return ({
+	#			"identifiers":"{("+DOMAIN+", '11223344')}",
+	#			"manufacturer":"Emotiva",
+	#			"model":"XMC1",
+	#			"name":"XMC"})
 
 	@property
 	def friendly_name(self):
@@ -236,52 +338,34 @@ class EmotivaDevice(MediaPlayerEntity):
 
 	async def async_set_volume_level(self, volume: float) -> None:
 		_vol = ((volume * self._device._volume_range)+self._device._volume_min)
-		await self._hass.async_add_executor_job(self._device.send_command,"set_volume",str(_vol))
+		await self._device.async_volume_set(str(_vol))
 
 	async def async_turn_off(self) -> None:
-		await self._hass.async_add_executor_job(self._device.send_command,"power_off","0")
+		await self._device.async_turn_off()
 
 	async def async_turn_on(self) -> None:
-		await self._hass.async_add_executor_job(self._device.send_command,"power_on","o")
+		await self._device.async_turn_on()
 
 	async def async_mute_volume(self, mute: bool) -> None:
-		mute_cmd = {True: 'mute_on', False: 'mute_off'}[mute]
-		# self.send_command(mute_cmd,0)
-		await self._hass.async_add_executor_job(self._device.send_command,mute_cmd,"0")
+		await self._device.async_set_mute(mute)
 
 	async def async_volume_up(self):
-		await self._hass.async_add_executor_job(self._device.send_command,"volume","+1")
+		await self._device.async_volume_up()
 
 	async def async_volume_down(self):
-		await self._hass.async_add_executor_job(self._device.send_command,"volume","-1")
+		await self._device.async_volume_down()
 
 	#def update(self):
 	#	self._device._update_status(self._device._events, float(self._device._proto_ver))		
 
 	async def async_update(self):
-		await self._hass.async_add_executor_job(self._device._update_status,self._device._events, float(self._device._proto_ver))
+		await self._device.async_update_status(self._device._events, float(self._device._proto_ver))
 
-
-
-	async def async_select_source(self, source: str) -> None:
-		#self._device.source = source
-		
-		if source not in self._device._sources:
-			_LOGGER.debug('Source "%s" is not a valid input' % source)
-		elif self._device._sources[source] is None:
-			_LOGGER.debug('Source "%s" has bad value (%s)' % (
-					source, self._device._sources[source]))
-		else:
-			await self._hass.async_add_executor_job(self._device.send_command,'source_%d' % self._device._sources[source],"0")
+	async def async_select_source(self, source: str) -> None:		
+		await self._device.async_set_source(source)
 
 	async def async_select_sound_mode(self, sound_mode: str) -> None:
-		if sound_mode not in self._device._modes:
-			_LOGGER.debug('Mode "%s" does not exist' % sound_mode)
-		elif self._device._modes[sound_mode][0] is None:
-			_LOGGER.debug('Mode "%s" has bad value (%s)' % (
-					sound_mode, self._device._modes[sound_mode][0]))
-		else:
-			await self._hass.async_add_executor_job(self._device.send_command,self._device._modes[sound_mode][0],"0")
+		await self._device.async_set_mode(sound_mode)
 
 	async def send_command(self, Command, Value):
-		await self._hass.async_add_executor_job(self._device.send_command,Command,Value)
+		await self._device.async_send_command(Command,Value)

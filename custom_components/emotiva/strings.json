@@ -1,0 +1,38 @@
+{
+  "title": "Emotiva Processor",
+    "config": {
+      "error": {
+        "data": "For manual config, you must enter the IP and Name of the processor",
+        "select": "You must either discover or enter details manually"
+      },
+      "step": {
+        "user": {
+          "data": {
+            "discover": "Search for Emotiva Processors during setup",
+            "manual": "Enter details manually below",
+            "host": "IP Address of the Emotiva Processor",
+            "name": "Name of the Emotiva Processor",
+            "control_port": "Control Port : Default 7002",
+            "notify_port":"Notification Port: Default 7003",
+            "protocol_version":"Protocol Version: Default 3.0"
+          },
+          "description": "Enter the details for your processor.  You can ask the setup to discover processors, and/or enter details manually for a processor",
+          "title": "Emotiva Processor"
+        }
+      }
+    },
+    "options": {
+      "error": {
+        "invalid_path": "The path provided is not valid. Should be in the format `user/repo-name` and should be a valid github repository."
+      },
+      "step": {
+        "init": {
+          "title": "Additional Notifications",
+          "data": {
+            "notifications": "Notifications to track"
+          },
+          "description": "Add additional notifications to track as entity attributes"
+        }
+      }
+    }
+  }

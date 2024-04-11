@@ -5,6 +5,11 @@ import socket
 
 from lxml import etree
 
+import asyncio
+
+import asyncio_datagram
+
+
 _LOGGER = logging.getLogger(__name__)
 
 class Error(Exception):
@@ -21,6 +26,59 @@ class InvalidModeError(Error):
 	pass
 
 
+class EmotivaNotifier(object):
+	def __init__(self):
+		self._devs = {}
+
+	async def _async_register(self, ip, port, callback):
+
+		if ip not in self._devs:
+			self._devs[ip] = callback
+
+		stream = await asyncio_datagram.bind((ip, port))
+
+		self._stream = stream
+
+		while True:
+			data, remote_addr = await stream.recv()
+
+			_LOGGER.debug("### Received notification %s", data)
+
+			cb = self._devs[ip]
+
+			cb(data)
+
+  
+#	  with self._lock:
+#	  if port not in self._socks_by_port:
+#		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+#		sock.bind(('', port))
+#		sock.setblocking(0)
+#		self._socks_by_port[port] = sock
+#		self._socks_by_fileno[sock.fileno()] = sock
+#		self._epoll.register(sock.fileno(), select.POLLIN)
+#	  if ip not in self._devs:
+#		self._devs[ip] = callback '''
+
+	def run(self):
+		_LOGGER.debug("Run Called")
+		pass
+
+
+#	_LOGGER.info("Connected")
+#	while True:
+#	  events = self._epoll.poll(1)
+#	  for fileno, event in events:
+#		if event & select.POLLIN:
+#		  with self._lock:
+#			sock = self._socks_by_fileno[fileno]
+#		  data, (ip, port) = sock.recvfrom(4096)
+#		  _LOGGER.debug("Got data %s from %s:%d" % (data, ip, port))
+#		  with self._lock:
+#			cb = self._devs[ip]
+#		  cb(data)
+
+		  
 class Emotiva(object):
 	XML_HEADER = '<?xml version="1.0" encoding="utf-8"?>'.encode('utf-8')
 	DISCOVER_REQ_PORT = 7000
@@ -30,6 +88,8 @@ class Emotiva(object):
 			'power', 'zone2_power', 'source', 'mode', 'volume', 'audio_input',
 			'audio_bitstream', 'video_input', 'video_format',
 	]).union(set(['input_%d' % d for d in range(1, 9)]))
+	
+	__notifier = EmotivaNotifier()
 
 
 	def __init__(self, ip, transp_xml = "", _ctrl_port = None, _notify_port = None, 
@@ -70,26 +130,77 @@ class Emotiva(object):
 
 		if not self._ctrl_port or not self._notify_port:
 			self.__parse_transponder(transp_xml)
+
+		self._local_ip = self._get_local_ip()
  
 		if not self._ctrl_port or not self._notify_port:
 			raise InvalidTransponderResponseError("Coulnd't find ctrl/notify ports")
+		
+		
+	def _get_local_ip(self):
+		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		sock.connect((self._ip, self._ctrl_port))
+		_local_ip = sock.getsockname()[0]
+		sock.close()
+		_LOGGER.debug("Local IP: ", _local_ip)
+		return _local_ip
 
 	def connect(self):
+		
 		self._ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		self._ctrl_sock.bind(('', self._ctrl_port))
 		self._ctrl_sock.settimeout(0.5)
+  		
+		
+	async def run_notifier(self):
+		_LOGGER.debug("Setting up Notifier")
+		await self.__notifier._async_register(self._local_ip, self._notify_port, self._notify_handler)
+
+	async def async_subscribe_events(self):
+		await self._subscribe_events(self._events)
+
+	async def async_unsubscribe_events(self):
+		await self._unsubscribe_events(self._events)
+
+
+	def _notify_handler(self, data):
+		_LOGGER.debug("Notify Handler received: %s", data)
+		resp = self._parse_response(data)
+		self._handle_status(resp)
+
+	async def _subscribe_events(self, events):
+		msg = self.format_request('emotivaSubscription',
+								[(ev, None) for ev in events])
+		await self._async_send_request(msg, ack=True)
+
+	async def _unsubscribe_events(self, events):
+		msg = self.format_request('emotivaUnsubscribe',
+								[(ev, None) for ev in events])
+		await self._async_send_request(msg, ack=True)
 
 	def disconnect(self):
 		self._ctrl_sock.close()
 
-	def _update_status(self, events, _proto_ver = 2.0):
+
+	async def async_update_status(self, events, _proto_ver = 2.0):
+		msg = self.format_request('emotivaUpdate',
+															[(ev, {}) for ev in events],
+															{'protocol':"3.0"} if _proto_ver == 3 else {})
+															#{})
+		await self._async_send_request(msg, ack=True)
+
+	def update_status(self, events, _proto_ver = 2.0):
 		msg = self.format_request('emotivaUpdate',
 															[(ev, {}) for ev in events],
 															{'protocol':"3.0"} if _proto_ver == 3 else {})
 															#{})
 		self._send_request(msg, ack=True)
 
+
 	def _send_request(self, req, ack=False, process_response=True):
+
+		self.connect()
+
 		try:
 			self._ctrl_sock.sendto(req, (self._ip, self._ctrl_port))
 		except:
@@ -105,7 +216,7 @@ class Emotiva(object):
 			try:
 				_resp_data, (ip, port) = self._ctrl_sock.recvfrom(4096)
 				#
-				_LOGGER.debug("Response on ack: %s",_resp_data)
+				# _LOGGER.debug("Response on ack: %s",_resp_data)
 				if process_response == True:
 					resp = self._parse_response(_resp_data)
 					self._handle_status(resp)
@@ -113,14 +224,44 @@ class Emotiva(object):
 			except socket.timeout:
 				_LOGGER.debug("socket.timeout on ack")
 				break
+
+		self.disconnect()
 	
+	async def _udp_client(self, command, ack):
+
+		_stream = await asyncio_datagram.connect((self._ip, self._ctrl_port),(self._local_ip,self._ctrl_port))
+
+		await _stream.send(command)
+		if ack:
+			resp, remote_addr = await _stream.recv()
+			#_LOGGER.debug("_udp_client received: %s", resp.decode())
+		else:
+			resp = None
+		_stream.close()
+		self._resp = resp
+		
+	async def _async_send_request(self, req, ack=False, process_response=True):
+		
+		await self._udp_client(req, ack)
+
+		# _LOGGER.debug("_async_send_request received %s", self._resp)
+
+		if ack and process_response:
+			resp = self._parse_response(self._resp)
+			self._handle_status(resp)
+
+	async def _async_send_emotivacontrol(self, command, value):
+		msg = self.format_request('emotivaControl', [(command, {'value': str(value),
+														'ack':'yes'})])
+		await self._async_send_request(msg, ack=True, process_response=False)		
+
 	def _send_emotivacontrol(self, command, value):
 		msg = self.format_request('emotivaControl', [(command, {'value': str(value),
-																															'ack':'yes'})])
+														'ack':'yes'})])
 		self._send_request(msg, ack=True, process_response=False)
 	
 	def __parse_transponder(self, transp_xml):
-		_LOGGER.debug("transp_xml %s", transp_xml)
+		# _LOGGER.debug("transp_xml %s", transp_xml)
 		elem = transp_xml.find('name')
 		if elem is not None: self._name = elem.text.strip()
 		elem = transp_xml.find('model')
@@ -171,9 +312,11 @@ class Emotiva(object):
 				num = elem.tag[6:]
 				self._sources[val] = int(num)
 		if self._update_cb:
+			_LOGGER.debug("Calling cb from _handle_status")
 			self._update_cb()
 
 	def set_update_cb(self, cb):
+		_LOGGER.debug("set_update_cb called")
 		self._update_cb = cb
 
 	@classmethod
@@ -189,7 +332,7 @@ class Emotiva(object):
 			req = cls.format_request('emotivaPing', {}, {'protocol': "3.0"})
 		else:
 			req = cls.format_request('emotivaPing')
-		_LOGGER.debug("Broadcast Req: %s", req)
+		#_LOGGER.debug("Broadcast Req: %s", req)
 		req_sock.sendto(req, ('<broadcast>', cls.DISCOVER_REQ_PORT))
 
 		devices = []
@@ -247,17 +390,16 @@ class Emotiva(object):
 	def address(self):
 		return self._ip
 
-
 	@property
 	def power(self):
 		if self._current_state['power'] == 'On':
 			return True
 		return False
 
-	@power.setter
-	def power(self, onoff):
-		cmd = {True: 'power_on', False: 'power_off'}[onoff]
-		self._send_emotivacontrol(cmd,0)
+	#@power.setter
+	#def power(self, onoff):
+	#	cmd = {True: 'power_on', False: 'power_off'}[onoff]
+	#	self._send_emotivacontrol(cmd,0)
 		
 	@property
 	def volume_level(self):
@@ -271,41 +413,53 @@ class Emotiva(object):
 		if self._current_state['volume'] != None:
 			return float(self._current_state['volume'].replace(" ", ""))
 		return None
+
+	#@volume.setter
+	#def volume(self, value):
+	#	self._send_emotivacontrol('set_volume',value)
+
+	async def _async_volume_step(self, incr):
+		await self._async_send_emotivacontrol('volume', incr)
+
+	async def async_volume_set(self, vol):
+		await self._async_send_emotivacontrol('set_volume', vol)
+
+	async def async_volume_up(self):
+		await self._async_volume_step(1)
+
+	async def async_volume_down(self):
+		await self._async_volume_step(-1)
+
+	async def async_mute_toggle(self):
+		await self._async_send_emotivacontrol('mute', '0')
 	
+	async def async_set_mute(self, enable):
+		mute_cmd = {True: 'mute_on', False: 'mute_off'}[enable]
+		await self._async_send_emotivacontrol(mute_cmd,'0')
 
-	@volume.setter
-	def volume(self, value):
-#    msg = self.format_request('emotivaControl', [('set_volume', {'value': str(value),
-#                                                              'ack':'yes'})])
-#    self._send_request(msg, ack=True, process_response=False)
-		self._send_emotivacontrol('set_volume',value)
+	async def async_turn_off(self):
+		await self._async_send_emotivacontrol("power_off",'0')
 
-	def _volume_step(self, incr):
-		self._send_emotivacontrol('volume', incr)
+	async def async_turn_on(self):
+		await self._async_send_emotivacontrol("power_on",'0')
 
-	def volume_up(self):
-		self._volume_step(1)
-
-	def volume_down(self):
-		self._volume_step(-1)
-
-	def mute_toggle(self):
-		self._send_emotivacontrol('mute', 0)
-	
 	def set_input(self, source):
 		self._send_emotivacontrol(source, 0)
 
 	def send_command(self, command, value):
 		self._send_emotivacontrol(command,value)
 
+	async def async_send_command(self, command, value):
+		await self._async_send_emotivacontrol(command,value)
+
 	@property
 	def mute(self):
 		return self._muted
 
-	@mute.setter
-	def mute(self, enable):
-		mute_cmd = {True: 'mute_on', False: 'mute_off'}[enable]
-		self._send_emotivacontrol(mute_cmd,0)
+	#@mute.setter
+	#def mute(self, enable):
+	#	mute_cmd = {True: 'mute_on', False: 'mute_off'}[enable]
+	#	self._send_emotivacontrol(mute_cmd,0)
 
 	@property
 	def sources(self):
@@ -315,14 +469,22 @@ class Emotiva(object):
 	def source(self):
 		return self._current_state['source']
 
-	@source.setter
-	def source(self, val):
+	#@source.setter
+	#def source(self, val):
+	#	if val not in self._sources:
+	#		raise InvalidSourceError('Source "%s" is not a valid input' % val)
+	#	elif self._sources[val] is None:
+	#		raise InvalidSourceError('Source "%s" has bad value (%s)' % (
+	#				val, self._sources[val]))
+	#	self._send_emotivacontrol('source_%d' % self._sources[val],0)
+ 
+	async def async_set_source(self, val):
 		if val not in self._sources:
 			raise InvalidSourceError('Source "%s" is not a valid input' % val)
 		elif self._sources[val] is None:
 			raise InvalidSourceError('Source "%s" has bad value (%s)' % (
 					val, self._sources[val]))
-		self._send_emotivacontrol('source_%d' % self._sources[val],0)
+		await self._async_send_emotivacontrol('source_%d' % self._sources[val],"0")
 	
 	@property
 	def modes(self):
@@ -333,12 +495,23 @@ class Emotiva(object):
 	def mode(self):
 		return self._current_state['mode']
 
-	@mode.setter
-	def mode(self, val):
+	#@mode.setter
+	#def mode(self, val):
+	#	if val not in self._modes:
+	#		raise InvalidModeError('Mode "%s" does not exist' % val)
+	#	elif self._modes[val][0] is None:
+	#		raise InvalidModeError('Mode "%s" has bad value (%s)' % (
+	#				val, self._modes[val][0]))
+	#	self._send_emotivacontrol(self._modes[val][0],0)
+
+	async def async_set_mode(self, val):
 		if val not in self._modes:
 			raise InvalidModeError('Mode "%s" does not exist' % val)
 		elif self._modes[val][0] is None:
 			raise InvalidModeError('Mode "%s" has bad value (%s)' % (
 					val, self._modes[val][0]))
-		self._send_emotivacontrol(self._modes[val][0],0)
+		await self._async_send_emotivacontrol(self._modes[val][0],"0")
+
+
+
 
