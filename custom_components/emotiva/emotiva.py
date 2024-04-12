@@ -9,6 +9,8 @@ import asyncio
 
 import asyncio_datagram
 
+import time
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,35 +50,9 @@ class EmotivaNotifier(object):
 
 			cb(data)
 
-  
-#	  with self._lock:
-#	  if port not in self._socks_by_port:
-#		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-#		sock.bind(('', port))
-#		sock.setblocking(0)
-#		self._socks_by_port[port] = sock
-#		self._socks_by_fileno[sock.fileno()] = sock
-#		self._epoll.register(sock.fileno(), select.POLLIN)
-#	  if ip not in self._devs:
-#		self._devs[ip] = callback '''
-
 	def run(self):
 		_LOGGER.debug("Run Called")
 		pass
-
-
-#	_LOGGER.info("Connected")
-#	while True:
-#	  events = self._epoll.poll(1)
-#	  for fileno, event in events:
-#		if event & select.POLLIN:
-#		  with self._lock:
-#			sock = self._socks_by_fileno[fileno]
-#		  data, (ip, port) = sock.recvfrom(4096)
-#		  _LOGGER.debug("Got data %s from %s:%d" % (data, ip, port))
-#		  with self._lock:
-#			cb = self._devs[ip]
-#		  cb(data)
 
 		  
 class Emotiva(object):
@@ -111,19 +87,25 @@ class Emotiva(object):
 		self._update_cb = None
 		self._modes = {"Stereo" :       ['stereo', 'mode_stereo', True],
 							"Direct":             ['direct', 'mode_direct', True],
-							"Dolby Surround":     ['dolby', 'mode_dolby', True],
+							"Dolby":     ['dolby', 'mode_dolby', True],
 							"DTS":                ['dts', 'mode_dts', True], 
 							"All Stereo" :        ['all_stereo', 'mode_all_stereo', True],
 							"Auto":               ['auto', 'mode_auto', True],
 							"Reference Stereo" :  ['reference_stereo', 'mode_ref_stereo',True],
 							"Surround":           ['surround_mode', 'mode_surround', True],
-							"PLIIx Music":				['pliix_music', 'mode_pliix_music', True ],
-							"PLIIx Movie":				['pliix_movie', 'mode_pliix_movie', True ]}
+							"PLIIx Music":				['dolby', 'mode_pliix_music', True ],
+							"PLIIx Movie":				['dolby', 'mode_pliix_movie', True ],
+							"dts Neo:6 Cinema":		['dts', 'mode_dts_cinema', True],
+							"dts Neo:6 Music":		['dts', 'mode_dts_music', True]}
 		self._events = events
 
 		# current state
 		self._current_state = dict(((ev, None) for ev in self._events))
 		self._current_state.update(dict(((m[1], None) for m in self._modes.values())))
+		# Add states for the hidden music modes
+		self._current_state.update({'selected_movie_music':None,
+							  'mode_music':'Music',
+							  'mode_movie':'Movie'})
 		self._sources = {}
 
 		self._muted = False
@@ -153,10 +135,11 @@ class Emotiva(object):
   		
 		
 	async def run_notifier(self):
-		_LOGGER.debug("Setting up Notifier")
+		_LOGGER.debug("Setting up Notify Listener")
 		await self.__notifier._async_register(self._local_ip, self._notify_port, self._notify_handler)
 
 	async def async_subscribe_events(self):
+		_LOGGER.debug("Subscribing to %s", self._events)
 		await self._subscribe_events(self._events)
 
 	async def async_unsubscribe_events(self):
@@ -164,7 +147,7 @@ class Emotiva(object):
 
 
 	def _notify_handler(self, data):
-		_LOGGER.debug("Notify Handler received: %s", data)
+		#_LOGGER.debug("Notify Handler received: %s", data)
 		resp = self._parse_response(data)
 		self._handle_status(resp)
 
@@ -234,7 +217,7 @@ class Emotiva(object):
 		await _stream.send(command)
 		if ack:
 			resp, remote_addr = await _stream.recv()
-			#_LOGGER.debug("_udp_client received: %s", resp.decode())
+			_LOGGER.debug("_udp_client received: %s", resp.decode())
 		else:
 			resp = None
 		_stream.close()
@@ -253,7 +236,8 @@ class Emotiva(object):
 	async def _async_send_emotivacontrol(self, command, value):
 		msg = self.format_request('emotivaControl', [(command, {'value': str(value),
 														'ack':'yes'})])
-		await self._async_send_request(msg, ack=True, process_response=False)		
+		await self._async_send_request(msg, ack=True, process_response=False)	
+
 
 	def _send_emotivacontrol(self, command, value):
 		msg = self.format_request('emotivaControl', [(command, {'value': str(value),
@@ -312,11 +296,9 @@ class Emotiva(object):
 				num = elem.tag[6:]
 				self._sources[val] = int(num)
 		if self._update_cb:
-			_LOGGER.debug("Calling cb from _handle_status")
 			self._update_cb()
 
 	def set_update_cb(self, cb):
-		_LOGGER.debug("set_update_cb called")
 		self._update_cb = cb
 
 	@classmethod
@@ -511,7 +493,12 @@ class Emotiva(object):
 			raise InvalidModeError('Mode "%s" has bad value (%s)' % (
 					val, self._modes[val][0]))
 		await self._async_send_emotivacontrol(self._modes[val][0],"0")
-
+		if "Music" in val and self._current_state['selected_movie_music'] != "Music":
+			await asyncio.sleep(0.5)
+			await self._async_send_emotivacontrol("music",'0')
+		elif ("Movie" in val or "Cinema" in val) and self._current_state['selected_movie_music'] != "Movie":
+			await asyncio.sleep(0.5)
+			await self._async_send_emotivacontrol("movie",'0')
 
 
 
