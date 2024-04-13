@@ -26,7 +26,7 @@ async def async_setup_entry(
 
     # Forward the setup to the platform.
     hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(entry, "media_player")
+        hass.config_entries.async_forward_entry_setup(entry, Platform.MEDIA_PLAYER)
     )
     return True
 

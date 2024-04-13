@@ -250,23 +250,29 @@ class EmotivaDevice(MediaPlayerEntity):
 
 	@property
 	def name(self):
-		return self._device.name
+		# return self._device.name
+		return None
 
-	#@property
-	#def device_info(self) -> DeviceInfo:
-	#	return ({
-	#			"identifiers":"{("+DOMAIN+", '11223344')}",
-	#			"manufacturer":"Emotiva",
-	#			"model":"XMC1",
-	#			"name":"XMC"})
+	@property
+	def has_entity_name(self):
+		return True
+
+	@property
+	def device_info(self) -> DeviceInfo:
+		"""Return the device info."""
+		return DeviceInfo(
+			identifiers={
+				# Serial numbers are unique identifiers within a specific domain
+				(DOMAIN, self._unique_id)
+			},
+			name=self._device.name,
+			manufacturer='Emotiva',
+			model=self._device.model)
 
 	@property
 	def friendly_name(self):
 		return self._device.name + " Processor"
 
-	@property
-	def has_entity_name(self):
-		return True
 
 	@property
 	def unique_id(self):
