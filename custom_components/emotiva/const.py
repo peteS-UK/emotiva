@@ -6,3 +6,5 @@ CONF_DISCOVER = "discover"
 CONF_MANUAL = "manual"
 
 DOMAIN = "emotiva"
+DEFAULT_NAME = "Emotiva Processor"
+SERVICE_SEND_COMMAND = "send_command"

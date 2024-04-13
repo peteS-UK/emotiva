@@ -33,8 +33,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_NAME = "Emotiva Processor - Media Player"
-SERVICE_SEND_COMMAND = "send_command"
+
 
 from .const import (
 	CONF_NOTIFICATIONS,
@@ -42,7 +41,9 @@ from .const import (
 	CONF_CTRL_PORT,
 	CONF_PROTO_VER,
 	CONF_DISCOVER,
-	CONF_MANUAL
+	CONF_MANUAL,
+	SERVICE_SEND_COMMAND,
+	DEFAULT_NAME
 )
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
@@ -88,9 +89,6 @@ async def async_setup_entry(
 		for receiver in receivers:
 
 			_ip, _xml = receiver
-
-			#if config[CONF_HOST] == _ip:
-			#	_configdiscovered = True
 				
 			emotiva = Emotiva(_ip, _xml)
 
@@ -140,67 +138,6 @@ async def async_setup_entry(
 		EmotivaDevice.send_command.__name__,
 	)
 
-
-'''
-async def async_setup_platform(
-				hass: HomeAssistant,
-				config: ConfigType,
-				async_add_entities: AddEntitiesCallback,
-				discovery_info: DiscoveryInfoType | None = None,
-			) -> None:
-#
-	
-	receivers = await hass.async_add_executor_job(Emotiva.discover,3)
-	
-	_configdiscovered = False
-
-	for receiver in receivers:
-
-		_ip, _xml = receiver
-
-		if config[CONF_HOST] == _ip:
-			_configdiscovered = True
-			
-		emotiva = Emotiva(_ip, _xml)
-
-		#Get additional notify
-		_notify_set = set(config[CONF_NOTIFICATIONS].split(","))
-
-		emotiva._events = emotiva._events.union(_notify_set)
-		emotiva._current_state.update(dict((m, None) for m in _notify_set))
-	
-		_LOGGER.debug("Adding %s from discovery", _ip)
-
-
-		async_add_entities([EmotivaDevice(emotiva, hass)])
-
-	if _configdiscovered == False and config[CONF_HOST] is not None:
-		_LOGGER.debug("Adding %s:%s from configuration.yaml", config[CONF_HOST]
-				, config[CONF_NAME])
-
-		emotiva = Emotiva(config[CONF_HOST], transp_xml = "", 
-					_ctrl_port = config[CONF_CTRL_PORT], _notify_port = config[CONF_NOTIFY_PORT],
-					_proto_ver = config[CONF_PROTO_VER], _name = config[CONF_NAME])
-		#Get additional notify
-		_notify_set = set(config[CONF_NOTIFICATIONS].split(","))
-		emotiva._events = emotiva._events.union(_notify_set)
-		emotiva._current_state.update(dict((m, None) for m in _notify_set))
-		async_add_entities([EmotivaDevice(emotiva, hass)])
-
-		await emotiva.connect_notifier()
-
-	# Register entity services
-	platform = entity_platform.async_get_current_platform()
-	platform.async_register_entity_service(
-		SERVICE_SEND_COMMAND,
-		{
-			vol.Required("Command"): cv.string,
-			vol.Required("Value"): cv.string,
-		},
-		EmotivaDevice.send_command.__name__,
-	)
-'''
-	
 
 class EmotivaDevice(MediaPlayerEntity):
 	# Representation of a Emotiva Processor

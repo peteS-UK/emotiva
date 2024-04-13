@@ -304,7 +304,16 @@ class Emotiva(object):
 	@classmethod
 	def discover(cls, version = 2):
 		resp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		resp_sock.bind(('', cls.DISCOVER_RESP_PORT))
+		try:
+			resp_sock.bind(('', cls.DISCOVER_RESP_PORT))
+		except:
+			time.sleep(1)
+			try:
+				resp_sock.bind(('', cls.DISCOVER_RESP_PORT))
+			except:
+				_LOGGER.error("Cannot bind to discovery port")
+				return []
+
 		resp_sock.settimeout(0.5)
 
 		req_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
