@@ -146,10 +146,10 @@ class EmotivaDevice(RemoteEntity):
 		self._entity_id = entity_id
 
 	async def async_turn_off(self) -> None:
-		await self._device.async_turn_off()
+		await self._device.async_send_command_no_ack("power_off","0")
 
 	async def async_turn_on(self) -> None:
-		await self._device.async_turn_on()
+		await self._device.async_send_command_no_ack("power_on","0")
 
 	async def async_send_command(self, command: Iterable[str], **kwargs: Any) -> None:
 		#await self._device.async_send_command(Command,Value)
@@ -160,7 +160,7 @@ class EmotivaDevice(RemoteEntity):
 				_LOGGER.error("Invalid remote command format.  Must be command,value")
 				return False
 			else:
-				await self._device.async_send_command(emo_Command,Value)
+				await self._device.async_send_command_no_ack(emo_Command,Value)
 		except:
 			_LOGGER.error("Invalid remote command format.  Must be command,value")
 			return False

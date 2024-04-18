@@ -50,6 +50,8 @@ class EmotivaNotifier(object):
 
 			cb(data)
 
+			await asyncio.sleep(0.1)
+
 	def run(self):
 		_LOGGER.debug("Run Called")
 		pass
@@ -84,6 +86,7 @@ class Emotiva(object):
 		self._volume_min = -96
 		self._volume_range = self._volume_max - self._volume_min
 		self._ctrl_sock = None
+		self._udp_stream = None
 		self._update_cb = None
 		self._modes = {"Stereo" :       ['stereo', 'mode_stereo', True],
 							"Direct":             ['direct', 'mode_direct', True],
@@ -209,18 +212,41 @@ class Emotiva(object):
 				break
 
 		self.disconnect()
+
+	async def udp_connect(self):
+		self._udp_stream = await asyncio_datagram.connect((self._ip, self._ctrl_port),(self._local_ip,self._ctrl_port))
 	
-	async def _udp_client(self, command, ack):
+	async def udp_disconnect(self):
+		self._udp_stream.close()
 
-		_stream = await asyncio_datagram.connect((self._ip, self._ctrl_port),(self._local_ip,self._ctrl_port))
+	async def _udp_client(self, req, ack):
 
-		await _stream.send(command)
+		#_stream = self._udp_stream
+
+		# _stream = await asyncio_datagram.connect((self._ip, self._ctrl_port),(self._local_ip,self._ctrl_port))
+
+		# _stream = await asyncio_datagram.bind((self._local_ip,self._ctrl_port), reuse_port=True)
+
+		try: 
+			await self._udp_stream.send(req)
+		except:
+			try:
+				_LOGGER.debug("Connection lost.  Attepting to reconnect")
+				self.udp_connect()
+				await self._udp_stream.send(req)
+			except:
+				_LOGGER.debug("Cannot reconnect to processor")
+				return
+
+		# await _stream.send(command, (self._ip, self._ctrl_port))
 		if ack:
-			resp, remote_addr = await _stream.recv()
+			resp, remote_addr = await self._udp_stream.recv()
 			_LOGGER.debug("_udp_client received: %s", resp.decode())
 		else:
 			resp = None
-		_stream.close()
+		
+		# _stream.close()
+		
 		self._resp = resp
 		
 	async def _async_send_request(self, req, ack=False, process_response=True):
@@ -442,6 +468,21 @@ class Emotiva(object):
 
 	async def async_send_command(self, command, value):
 		await self._async_send_emotivacontrol(command,value)
+
+	async def async_send_command_no_ack(self, command, value):
+
+		req = self.format_request('emotivaControl', [(command, {'value': str(value),
+														'ack':'no'})])
+		
+		
+		_LOGGER.debug("IP : %s, Port %d, req %s",self._ip, self._ctrl_port,req )
+
+		_stream = await asyncio_datagram.connect((self._ip, self._ctrl_port))
+
+		await _stream.send(req)
+
+		_stream.close()
+
 
 	@property
 	def mute(self):

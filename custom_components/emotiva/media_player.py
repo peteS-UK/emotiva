@@ -157,7 +157,9 @@ class EmotivaDevice(MediaPlayerEntity):
 		# self._hass.async_create_task(self._device.run_notifier())
 		# changed to stop startup hanging
 		self._notifier_task = asyncio.create_task(self._device.run_notifier())
+		await self._device.udp_connect()
 		await self._device.async_subscribe_events()
+
 
 	def async_update_callback(self, reason = False):
 		"""Update the device's state."""
@@ -169,6 +171,7 @@ class EmotivaDevice(MediaPlayerEntity):
 		"""Disconnect device object when removed."""
 		self._device.set_update_cb(None)
 		await self._device.async_unsubscribe_events()
+		await self._device.udp_disconnect()
 		try:
 			self._notifier_task.cancel()
 		except:
@@ -268,7 +271,9 @@ class EmotivaDevice(MediaPlayerEntity):
 		for ev in self._device._events:
 			if ev.startswith("power") == False:
 				_attributes[ev] = self._device._current_state[ev]
-		
+
+		if self._device.mute == True:
+			_attributes["volume"] = "0"
 		return _attributes
 	
 	@property
