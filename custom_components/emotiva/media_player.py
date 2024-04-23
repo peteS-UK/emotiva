@@ -186,7 +186,10 @@ class EmotivaDevice(MediaPlayerEntity):
 
 	@property
 	def icon(self):
-		return "mdi:audio-video"
+		if self._device.power == True: 
+			return "mdi:audio-video"
+		else:
+			return "mdi:audio-video-off"
 
 	@property
 	def name(self):
