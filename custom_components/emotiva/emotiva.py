@@ -39,11 +39,16 @@ class EmotivaNotifier(object):
 		if ip not in self._devs:
 			self._devs[ip] = callback
 
-		stream = await asyncio_datagram.bind((ip, port))
+		try: 
+			stream = await asyncio_datagram.bind((ip, port))
+		except IOError as e:
+			_LOGGER.critical("Cannot bind to local socket %d: %s", e.errno, e.strerror)
+		except:
+			_LOGGER.critical("Unknown error on binding to local socket %s", sys.exc_info()[0])
 
 		self._stream = stream
 
-		while True:
+		while True and stream is not None:
 			data, remote_addr = await stream.recv()
 
 			_LOGGER.debug("### Received notification %s", data)
