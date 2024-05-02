@@ -11,6 +11,8 @@ import asyncio_datagram
 
 import time
 
+import sys
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -214,18 +216,22 @@ class Emotiva(object):
 		self.disconnect()
 
 	async def udp_connect(self):
-		self._udp_stream = await asyncio_datagram.connect((self._ip, self._ctrl_port),(self._local_ip,self._ctrl_port))
+		try:
+			self._udp_stream = await asyncio_datagram.connect((self._ip, self._ctrl_port),(self._local_ip,self._ctrl_port))
+		except IOError as e:
+			_LOGGER.critical("Cannot connect listener socket %d: %s", e.errno, e.strerror)
+		except:
+			_LOGGER.critical("Unknown error on listener socket connection %s", sys.exc_info()[0])
 	
 	async def udp_disconnect(self):
-		self._udp_stream.close()
+		try:
+			self._udp_stream.close()
+		except IOError as e:
+			_LOGGER.critical("Cannot disconnect from listener socket %d: %s", e.errno, e.strerror)
+		except:
+			_LOGGER.critical("Unknown error on listener socket disconnection %s", sys.exc_info()[0])
 
 	async def _udp_client(self, req, ack):
-
-		#_stream = self._udp_stream
-
-		# _stream = await asyncio_datagram.connect((self._ip, self._ctrl_port),(self._local_ip,self._ctrl_port))
-
-		# _stream = await asyncio_datagram.bind((self._local_ip,self._ctrl_port), reuse_port=True)
 
 		try: 
 			await self._udp_stream.send(req)
@@ -234,9 +240,11 @@ class Emotiva(object):
 				_LOGGER.debug("Connection lost.  Attepting to reconnect")
 				self.udp_connect()
 				await self._udp_stream.send(req)
+
+			except IOError as e:
+				_LOGGER.critical("Cannot reconnect to command socket %d: %s", e.errno, e.strerror)
 			except:
-				_LOGGER.debug("Cannot reconnect to processor")
-				return
+				_LOGGER.critical("Unknown error on command socket reconnection %s", sys.exc_info()[0])
 
 		# await _stream.send(command, (self._ip, self._ctrl_port))
 		if ack:
@@ -477,11 +485,15 @@ class Emotiva(object):
 		
 		_LOGGER.debug("IP : %s, Port %d, req %s",self._ip, self._ctrl_port,req )
 
-		_stream = await asyncio_datagram.connect((self._ip, self._ctrl_port))
+		try:
+			_stream = await asyncio_datagram.connect((self._ip, self._ctrl_port))
+			await _stream.send(req)
+			_stream.close()
 
-		await _stream.send(req)
-
-		_stream.close()
+		except IOError as e:
+			_LOGGER.critical("Cannot connect to command socket %d: %s", e.errno, e.strerror)
+		except:
+			_LOGGER.critical("Unknown error on command socket connection %s", sys.exc_info()[0])
 
 
 	@property

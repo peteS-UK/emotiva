@@ -30,6 +30,7 @@ from homeassistant.helpers import (
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.start import async_at_start
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -150,16 +151,18 @@ class EmotivaDevice(MediaPlayerEntity):
 		self._unique_id = "emotiva_"+self._device.name.replace(" ","_").replace("-","_").replace(":","_")
 		self._device_class = "receiver"
 		self._notifier_task = None
-		
-	async def async_added_to_hass(self):
-		"""Subscribe to device events."""
-		self._device.set_update_cb(self.async_update_callback)
-		# self._hass.async_create_task(self._device.run_notifier())
-		# changed to stop startup hanging
-		self._notifier_task = asyncio.create_task(self._device.run_notifier())
+
+	async def _async_startup(self, loop):
+
+		self._notifier_task = self._hass.async_create_task(self._device.run_notifier())
 		await self._device.udp_connect()
 		await self._device.async_subscribe_events()
 
+	async def async_added_to_hass(self):
+		"""Subscribe to device events."""
+		self._device.set_update_cb(self.async_update_callback)
+		
+		async_at_start(self._hass,  self._async_startup)
 
 	def async_update_callback(self, reason = False):
 		"""Update the device's state."""
