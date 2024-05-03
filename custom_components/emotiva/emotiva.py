@@ -95,6 +95,7 @@ class Emotiva(object):
 		self._ctrl_sock = None
 		self._udp_stream = None
 		self._update_cb = None
+		self._remote_update_cb = None
 		self._modes = {"Stereo" :       ['stereo', 'mode_stereo', True],
 							"Direct":             ['direct', 'mode_direct', True],
 							"Dolby":     ['dolby', 'mode_dolby', True],
@@ -336,6 +337,12 @@ class Emotiva(object):
 				self._sources[val] = int(num)
 		if self._update_cb:
 			self._update_cb()
+		if self._remote_update_cb:
+			self._remote_update_cb()
+
+
+	def set_remote_update_cb(self, cb):
+		self._remote_update_cb = cb
 
 	def set_update_cb(self, cb):
 		self._update_cb = cb

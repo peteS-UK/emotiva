@@ -76,56 +76,9 @@ async def async_setup_entry(
 
 	config = hass.data[DOMAIN][config_entry.entry_id]
 
-	_LOGGER.debug("Host from config %s", config[CONF_HOST])
+	emotiva_list = config["emotiva"]
 
-	if config_entry.options:
-		config.update(config_entry.options)
-		_LOGGER.debug("Option %s", config_entry.options.get(CONF_NOTIFICATIONS))
-
-	receivers = []
-
-	if config[CONF_DISCOVER]:
-		receivers = await hass.async_add_executor_job(Emotiva.discover,3)
-		_configdiscovered = False
-		for receiver in receivers:
-
-			_ip, _xml = receiver
-				
-			emotiva = Emotiva(_ip, _xml)
-
-			#Get additional notify
-			if config.get(CONF_NOTIFICATIONS) is not None:
-				_LOGGER.debug("Adding %s",config[CONF_NOTIFICATIONS])
-				_notify_set = set(config[CONF_NOTIFICATIONS].replace(" ","").split(","))
-			else:
-				_notify_set = set()
-
-			emotiva._events = emotiva._events.union(_notify_set)
-			emotiva._current_state.update(dict((m, None) for m in _notify_set))
-		
-			_LOGGER.debug("Adding %s from discovery", _ip)
-
-			async_add_entities([EmotivaDevice(emotiva, hass)])
-
-	if config[CONF_MANUAL] and not any([config[CONF_HOST] in tup for tup in receivers]):
-		_LOGGER.debug("Adding %s:%s from config", config[CONF_HOST]
-				, config[CONF_NAME])
-
-		emotiva = Emotiva(config[CONF_HOST], transp_xml = "", 
-					_ctrl_port = config[CONF_CTRL_PORT], _notify_port = config[CONF_NOTIFY_PORT],
-					_proto_ver = config[CONF_PROTO_VER], _name = config[CONF_NAME])
-
-		#Get additional notify
-		if config.get(CONF_NOTIFICATIONS) is not None:
-			_LOGGER.debug("Adding %s",config[CONF_NOTIFICATIONS])
-			_notify_set = set(config[CONF_NOTIFICATIONS].replace(" ","").split(","))
-		else:
-			_notify_set = set()
-
-			emotiva._events = emotiva._events.union(_notify_set)
-			emotiva._current_state.update(dict((m, None) for m in _notify_set))
-
-
+	for emotiva in emotiva_list:
 		async_add_entities([EmotivaDevice(emotiva, hass)])
 
 	# Register entity services
