@@ -126,12 +126,22 @@ class EmotivaDevice(MediaPlayerEntity):
 	async def async_will_remove_from_hass(self) -> None:
 		"""Disconnect device object when removed."""
 		self._device.set_update_cb(None)
+		self._device.set_remote_update_cb(None)
+
 		await self._device.async_unsubscribe_events()
 		await self._device.udp_disconnect()
-		try:
-			self._notifier_task.cancel()
-		except:
-			pass
+
+		await self._device.stop_notifier()
+
+		self._notifier_task.cancel()
+
+
+		#try:
+		#	self._device._stream.close()
+		#	await self._device.stream.wait_closed()
+		#	self._notifier_task.cancel()
+		#except:
+		#	pass
 
 	should_poll = False
 

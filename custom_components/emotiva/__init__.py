@@ -31,10 +31,7 @@ async def async_setup_entry(
 	"""Set up platform from a ConfigEntry."""
 	hass.data.setdefault(DOMAIN, {})
 	hass_data = dict(entry.data)
-	# Registers update listener to update config entry when options are updated.
-	unsub_options_update_listener = entry.add_update_listener(options_update_listener)
-	# Store a reference to the unsubscribe function to cleanup if an entry is unloaded.
-	hass_data["unsub_options_update_listener"] = unsub_options_update_listener
+
 
 	receivers = []
 	emotiva = []
@@ -51,18 +48,6 @@ async def async_setup_entry(
 		
 			_LOGGER.debug("Adding %s from discovery", _ip)
 
-			#Get additional notify
-			if hass_data.get(CONF_NOTIFICATIONS) is not None:
-				_LOGGER.debug("Adding %s",hass_data[CONF_NOTIFICATIONS])
-				_notify_set = set(hass_data[CONF_NOTIFICATIONS].replace(" ","").split(","))
-			else:
-				_notify_set = set()
-
-			emotiva[len(emotiva)-1]._events = emotiva[len(emotiva)-1]._events.union(_notify_set)
-			emotiva[len(emotiva)-1]._current_state.update(dict((m, None) for m in _notify_set))
-
-			#async_add_entities([EmotivaDevice(emotiva, hass)])
-
 	if hass_data[CONF_MANUAL] and not any([hass_data[CONF_HOST] in tup for tup in receivers]):
 		_LOGGER.debug("Adding %s:%s from config", hass_data[CONF_HOST]
 				, hass_data[CONF_NAME])
@@ -72,16 +57,15 @@ async def async_setup_entry(
 					_proto_ver = hass_data[CONF_PROTO_VER], _name = hass_data[CONF_NAME]))
 
 		#Get additional notify
-		if hass_data.get(CONF_NOTIFICATIONS) is not None:
-			_LOGGER.debug("Adding %s",hass_data[CONF_NOTIFICATIONS])
-			_notify_set = set(hass_data[CONF_NOTIFICATIONS].replace(" ","").split(","))
-		else:
-			_notify_set = set()
 
-		emotiva[len(emotiva)-1]._events = emotiva[len(emotiva)-1]._events.union(_notify_set)
-		emotiva[len(emotiva)-1]._current_state.update(dict((m, None) for m in _notify_set))
+	_update_extra_notifications(emotiva,entry.options[CONF_NOTIFICATIONS])
 
 	hass_data["emotiva"] = emotiva
+
+	# Registers update listener to update config entry when options are updated.
+	unsub_options_update_listener = entry.add_update_listener(options_update_listener)
+	# Store a reference to the unsubscribe function to cleanup if an entry is unloaded.
+	hass_data["unsub_options_update_listener"] = unsub_options_update_listener
 
 	hass.data[DOMAIN][entry.entry_id] = hass_data
 
@@ -89,11 +73,22 @@ async def async_setup_entry(
 
 	return True
 
+def _update_extra_notifications(emotiva, notifications):
+	if notifications is not None:
+		_LOGGER.debug("Adding %s",notifications)
+		_notify_set = set(notifications.replace(" ","").split(","))
+	else:
+		_notify_set = set()
+
+	emotiva[len(emotiva)-1]._events = emotiva[len(emotiva)-1]._events.union(_notify_set)
+	emotiva[len(emotiva)-1]._current_state.update(dict((m, None) for m in _notify_set))
 
 async def options_update_listener(
 	hass: core.HomeAssistant, config_entry: config_entries.ConfigEntry
 ):
 	"""Handle options update."""
+	_update_extra_notifications(hass.data[DOMAIN][config_entry.entry_id]["emotiva"],config_entry.options[CONF_NOTIFICATIONS])
+
 	await hass.config_entries.async_reload(config_entry.entry_id)
 
 

@@ -59,6 +59,9 @@ class EmotivaNotifier(object):
 
 			await asyncio.sleep(0.1)
 
+	async def _async_unregister(self):
+		self._stream.close()
+
 	def run(self):
 		_LOGGER.debug("Run Called")
 		pass
@@ -148,6 +151,10 @@ class Emotiva(object):
 	async def run_notifier(self):
 		_LOGGER.debug("Setting up Notify Listener")
 		await self.__notifier._async_register(self._local_ip, self._notify_port, self._notify_handler)
+
+	async def stop_notifier(self):
+		_LOGGER.debug("Stopping Notify Listener")
+		await self.__notifier._async_unregister()
 
 	async def async_subscribe_events(self):
 		_LOGGER.debug("Subscribing to %s", self._events)
