@@ -58,7 +58,8 @@ async def async_setup_entry(
 
 		#Get additional notify
 
-	_update_extra_notifications(emotiva,entry.options[CONF_NOTIFICATIONS])
+	if CONF_NOTIFICATIONS in entry.options:
+		_update_extra_notifications(emotiva,entry.options[CONF_NOTIFICATIONS])
 
 	hass_data["emotiva"] = emotiva
 
