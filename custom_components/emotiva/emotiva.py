@@ -147,8 +147,8 @@ class Emotiva(object):
                     "Auto": ["auto", "mode_auto", True],
                     "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
                     "Surround": ["surround_mode", "mode_surround", True],
-                    "PLIIx Music": ["dolby", "mode_pliix_music", True],
-                    "PLIIx Movie": ["dolby", "mode_pliix_movie", True],
+                    "PLIIIx Music": ["dolby", "mode_pliix_music", True],
+                    "PLIIIx Movie": ["dolby", "mode_pliix_movie", True],
                     "dts Neo:6 Cinema": ["dts", "mode_dts_cinema", True],
                     "dts Neo:6 Music": ["dts", "mode_dts_music", True],
                 }
