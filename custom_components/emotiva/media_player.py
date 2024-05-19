@@ -1,5 +1,3 @@
-
-
 from __future__ import annotations
 
 import logging
@@ -12,10 +10,10 @@ from .emotiva import Emotiva
 import voluptuous as vol
 
 from homeassistant.components.media_player import (
-	PLATFORM_SCHEMA,
-	MediaPlayerEntity,
-	MediaPlayerEntityFeature,
-	MediaPlayerState
+    PLATFORM_SCHEMA,
+    MediaPlayerEntity,
+    MediaPlayerEntityFeature,
+    MediaPlayerState,
 )
 
 from homeassistant import config_entries, core
@@ -23,9 +21,9 @@ from homeassistant import config_entries, core
 from homeassistant.const import CONF_HOST, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
-	config_validation as cv,
-	discovery_flow,
-	entity_platform,
+    config_validation as cv,
+    discovery_flow,
+    entity_platform,
 )
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -35,254 +33,264 @@ from homeassistant.helpers.start import async_at_start
 _LOGGER = logging.getLogger(__name__)
 
 
-
 from .const import (
-	CONF_NOTIFICATIONS,
-	CONF_NOTIFY_PORT,
-	CONF_CTRL_PORT,
-	CONF_PROTO_VER,
-	CONF_DISCOVER,
-	CONF_MANUAL,
-	SERVICE_SEND_COMMAND,
-	DEFAULT_NAME
+    CONF_NOTIFICATIONS,
+    CONF_NOTIFY_PORT,
+    CONF_CTRL_PORT,
+    CONF_PROTO_VER,
+    CONF_DISCOVER,
+    CONF_MANUAL,
+    SERVICE_SEND_COMMAND,
+    DEFAULT_NAME,
 )
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-	{
-		vol.Optional(CONF_HOST): cv.string,
-		vol.Optional(CONF_NAME, default=None): cv.string,
-		vol.Optional(CONF_NOTIFICATIONS, default=None): cv.string,
-		vol.Optional(CONF_CTRL_PORT, default=7002): vol.Coerce(int),
-		vol.Optional(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int),
-		vol.Optional(CONF_PROTO_VER, default=3.0): vol.Coerce(float)
-	}
+    {
+        vol.Optional(CONF_HOST): cv.string,
+        vol.Optional(CONF_NAME, default=None): cv.string,
+        vol.Optional(CONF_NOTIFICATIONS, default=None): cv.string,
+        vol.Optional(CONF_CTRL_PORT, default=7002): vol.Coerce(int),
+        vol.Optional(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int),
+        vol.Optional(CONF_PROTO_VER, default=3.0): vol.Coerce(float),
+    }
 )
 
 SUPPORT_EMOTIVA = (
-	MediaPlayerEntityFeature.VOLUME_STEP
-	| MediaPlayerEntityFeature.VOLUME_MUTE
-	| MediaPlayerEntityFeature.TURN_ON
-	| MediaPlayerEntityFeature.TURN_OFF
-	| MediaPlayerEntityFeature.SELECT_SOURCE
-	| MediaPlayerEntityFeature.VOLUME_SET
-	| MediaPlayerEntityFeature.SELECT_SOUND_MODE 
+    MediaPlayerEntityFeature.VOLUME_STEP
+    | MediaPlayerEntityFeature.VOLUME_MUTE
+    | MediaPlayerEntityFeature.TURN_ON
+    | MediaPlayerEntityFeature.TURN_OFF
+    | MediaPlayerEntityFeature.SELECT_SOURCE
+    | MediaPlayerEntityFeature.VOLUME_SET
+    | MediaPlayerEntityFeature.SELECT_SOUND_MODE
 )
 
+
 async def async_setup_entry(
-	hass: core.HomeAssistant,
-	config_entry: config_entries.ConfigEntry,
-	async_add_entities,
+    hass: core.HomeAssistant,
+    config_entry: config_entries.ConfigEntry,
+    async_add_entities,
 ) -> None:
 
-	config = hass.data[DOMAIN][config_entry.entry_id]
+    config = hass.data[DOMAIN][config_entry.entry_id]
 
-	emotiva_list = config["emotiva"]
+    emotiva_list = config["emotiva"]
 
-	for emotiva in emotiva_list:
-		async_add_entities([EmotivaDevice(emotiva, hass)])
+    for emotiva in emotiva_list:
+        async_add_entities([EmotivaDevice(emotiva, hass)])
 
-	# Register entity services
-	platform = entity_platform.async_get_current_platform()
-	platform.async_register_entity_service(
-		SERVICE_SEND_COMMAND,
-		{
-			vol.Required("Command"): cv.string,
-			vol.Required("Value"): cv.string,
-		},
-		EmotivaDevice.send_command.__name__,
-	)
+    # Register entity services
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        SERVICE_SEND_COMMAND,
+        {
+            vol.Required("Command"): cv.string,
+            vol.Required("Value"): cv.string,
+        },
+        EmotivaDevice.send_command.__name__,
+    )
 
 
 class EmotivaDevice(MediaPlayerEntity):
-	# Representation of a Emotiva Processor
+    # Representation of a Emotiva Processor
 
-	def __init__(self, device, hass):
+    def __init__(self, device, hass):
 
-		self._device = device
-		self._hass = hass
-		self._entity_id = "media_player.emotivaprocessor"
-		self._unique_id = "emotiva_"+self._device.name.replace(" ","_").replace("-","_").replace(":","_")
-		self._device_class = "receiver"
-		self._notifier_task = None
+        self._device = device
+        self._hass = hass
+        self._entity_id = "media_player.emotivaprocessor"
+        self._unique_id = "emotiva_" + self._device.name.replace(" ", "_").replace(
+            "-", "_"
+        ).replace(":", "_")
+        self._device_class = "receiver"
+        self._notifier_task = None
 
-	async def _async_startup(self, loop):
+    async def _async_startup(self, loop):
 
-		self._notifier_task = self._hass.async_create_task(self._device.run_notifier())
-		await self._device.udp_connect()
-		await self._device.async_subscribe_events()
+        self._notifier_task = self._hass.async_create_background_task(
+            self._device.run_notifier(), name="emotiva notifier task"
+        )
 
-	async def async_added_to_hass(self):
-		"""Subscribe to device events."""
-		self._device.set_update_cb(self.async_update_callback)
-		
-		async_at_start(self._hass,  self._async_startup)
+        await self._device.udp_connect()
+        await self._device.async_subscribe_events()
 
-	def async_update_callback(self, reason = False):
-		"""Update the device's state."""
-		_LOGGER.debug("Calling async_schedule_update_ha_state")
-		self.async_schedule_update_ha_state()
-		
+    async def async_added_to_hass(self):
+        """Subscribe to device events."""
+        self._device.set_update_cb(self.async_update_callback)
 
-	async def async_will_remove_from_hass(self) -> None:
-		"""Disconnect device object when removed."""
-		self._device.set_update_cb(None)
-		self._device.set_remote_update_cb(None)
+        async_at_start(self._hass, self._async_startup)
 
-		await self._device.async_unsubscribe_events()
-		await self._device.udp_disconnect()
+    def async_update_callback(self, reason=False):
+        """Update the device's state."""
+        _LOGGER.debug("Calling async_schedule_update_ha_state")
+        self.async_schedule_update_ha_state()
 
-		await self._device.stop_notifier()
+    async def async_will_remove_from_hass(self) -> None:
+        """Disconnect device object when removed."""
+        self._device.set_update_cb(None)
+        self._device.set_remote_update_cb(None)
 
-		self._notifier_task.cancel()
+        await self._device.async_unsubscribe_events()
+        await self._device.udp_disconnect()
 
+        await self._device.stop_notifier()
 
-		#try:
-		#	self._device._stream.close()
-		#	await self._device.stream.wait_closed()
-		#	self._notifier_task.cancel()
-		#except:
-		#	pass
+        self._notifier_task.cancel()
 
-	should_poll = False
+        # try:
+        # 	self._device._stream.close()
+        # 	await self._device.stream.wait_closed()
+        # 	self._notifier_task.cancel()
+        # except:
+        # 	pass
 
-	@property
-	def should_poll(self):
-		return False
+    should_poll = False
 
+    @property
+    def should_poll(self):
+        return False
 
-	@property
-	def icon(self):
-		if self._device.power == True: 
-			return "mdi:audio-video"
-		else:
-			return "mdi:audio-video-off"
+    @property
+    def icon(self):
+        if self._device.power == True:
+            return "mdi:audio-video"
+        else:
+            return "mdi:audio-video-off"
 
-	@property
-	def name(self):
-		# return self._device.name
-		return None
+    @property
+    def name(self):
+        # return self._device.name
+        return None
 
-	@property
-	def has_entity_name(self):
-		return True
+    @property
+    def has_entity_name(self):
+        return True
 
-	@property
-	def device_info(self) -> DeviceInfo:
-		"""Return the device info."""
-		return DeviceInfo(
-			identifiers={
-				# Serial numbers are unique identifiers within a specific domain
-				(DOMAIN, self._unique_id)
-			},
-			name=self._device.name,
-			manufacturer='Emotiva',
-			model=self._device.model)
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return the device info."""
+        return DeviceInfo(
+            identifiers={
+                # Serial numbers are unique identifiers within a specific domain
+                (DOMAIN, self._unique_id)
+            },
+            name=self._device.name,
+            manufacturer="Emotiva",
+            model=self._device.model,
+        )
 
-	@property
-	def friendly_name(self):
-		return self._device.name + " Processor"
+    @property
+    def friendly_name(self):
+        return self._device.name + " Processor"
 
+    @property
+    def unique_id(self):
+        return self._unique_id
 
-	@property
-	def unique_id(self):
-		return self._unique_id
-		
-	@property
-	def entity_id(self):
-		return self._entity_id
-	
-	@property
-	def device_class(self):
-		return self._device_class
+    @property
+    def entity_id(self):
+        return self._entity_id
 
-	@entity_id.setter
-	def entity_id(self, entity_id):
-		self._entity_id = entity_id
+    @property
+    def device_class(self):
+        return self._device_class
 
-	@property
-	def state(self) -> MediaPlayerState | None:
-			if self._device.power == False:
-				return MediaPlayerState.OFF
-			if self._device.power == True:
-				return MediaPlayerState.ON
+    @entity_id.setter
+    def entity_id(self, entity_id):
+        self._entity_id = entity_id
 
-			return None
+    @property
+    def state(self) -> MediaPlayerState | None:
+        if self._device.power == False:
+            return MediaPlayerState.OFF
+        if self._device.power == True:
+            return MediaPlayerState.ON
 
-	@property
-	def source_list(self):
-		return self._device.sources
-	
-	@property
-	def source(self):
-		return self._device.source
+        return None
 
-	@property
-	def sound_mode_list(self):
-		return self._device.modes	
+    @property
+    def source_list(self):
+        return self._device.sources
 
-	@property
-	def sound_mode(self):
-		return self._device.mode
+    @property
+    def source(self):
+        return self._device.source
 
-	@property
-	def supported_features(self) -> MediaPlayerEntityFeature:
-			return SUPPORT_EMOTIVA
+    @property
+    def sound_mode_list(self):
+        return self._device.modes
 
-	@property
-	def is_volume_muted(self):
-		return self._device.mute
-	
-	@property 
-	def extra_state_attributes(self):
+    @property
+    def sound_mode(self):
+        return self._device.mode
 
-		_attributes = {}
+    @property
+    def supported_features(self) -> MediaPlayerEntityFeature:
+        return SUPPORT_EMOTIVA
 
-		for ev in self._device._events:
-			if ev.startswith("power") == False:
-				_attributes[ev] = self._device._current_state[ev]
+    @property
+    def is_volume_muted(self):
+        return self._device.mute
 
-		if self._device.mute == True:
-			_attributes["volume"] = "0"
-		return _attributes
-	
-	@property
-	def volume_level(self):
-		if self._device.volume is None:
-			# device is muted
-			return 0.0
-		else:
-			return float("%.2f" % ((self._device.volume-self._device._volume_min)/self._device._volume_range))
+    @property
+    def extra_state_attributes(self):
 
-	async def async_set_volume_level(self, volume: float) -> None:
-		_vol = ((volume * self._device._volume_range)+self._device._volume_min)
-		await self._device.async_volume_set(str(_vol))
+        _attributes = {}
 
-	async def async_turn_off(self) -> None:
-		await self._device.async_turn_off()
+        for ev in self._device._events:
+            if ev.startswith("power") == False:
+                _attributes[ev] = self._device._current_state[ev]
 
-	async def async_turn_on(self) -> None:
-		await self._device.async_turn_on()
+        if self._device.mute == True:
+            _attributes["volume"] = "0"
+        return _attributes
 
-	async def async_mute_volume(self, mute: bool) -> None:
-		await self._device.async_set_mute(mute)
+    @property
+    def volume_level(self):
+        if self._device.volume is None:
+            # device is muted
+            return 0.0
+        else:
+            return float(
+                "%.2f"
+                % (
+                    (self._device.volume - self._device._volume_min)
+                    / self._device._volume_range
+                )
+            )
 
-	async def async_volume_up(self):
-		await self._device.async_volume_up()
+    async def async_set_volume_level(self, volume: float) -> None:
+        _vol = (volume * self._device._volume_range) + self._device._volume_min
+        await self._device.async_volume_set(str(_vol))
 
-	async def async_volume_down(self):
-		await self._device.async_volume_down()
+    async def async_turn_off(self) -> None:
+        await self._device.async_turn_off()
 
-	#def update(self):
-	#	self._device._update_status(self._device._events, float(self._device._proto_ver))		
+    async def async_turn_on(self) -> None:
+        await self._device.async_turn_on()
 
-	async def async_update(self):
-		await self._device.async_update_status(self._device._events, float(self._device._proto_ver))
+    async def async_mute_volume(self, mute: bool) -> None:
+        await self._device.async_set_mute(mute)
 
-	async def async_select_source(self, source: str) -> None:		
-		await self._device.async_set_source(source)
+    async def async_volume_up(self):
+        await self._device.async_volume_up()
 
-	async def async_select_sound_mode(self, sound_mode: str) -> None:
-		await self._device.async_set_mode(sound_mode)
+    async def async_volume_down(self):
+        await self._device.async_volume_down()
 
-	async def send_command(self, Command, Value):
-		await self._device.async_send_command(Command,Value)
+    # def update(self):
+    # 	self._device._update_status(self._device._events, float(self._device._proto_ver))
+
+    async def async_update(self):
+        await self._device.async_update_status(
+            self._device._events, float(self._device._proto_ver)
+        )
+
+    async def async_select_source(self, source: str) -> None:
+        await self._device.async_set_source(source)
+
+    async def async_select_sound_mode(self, sound_mode: str) -> None:
+        await self._device.async_set_mode(sound_mode)
+
+    async def send_command(self, Command, Value):
+        await self._device.async_send_command(Command, Value)
