@@ -121,9 +121,17 @@ class Emotiva(object):
         self._udp_stream = None
         self._update_cb = None
         self._remote_update_cb = None
+
+        if not self._ctrl_port or not self._notify_port:
+            self.__parse_transponder(transp_xml)
+
+        if not self._ctrl_port or not self._notify_port:
+            raise InvalidTransponderResponseError("Coulnd't find ctrl/notify ports")
+
         self._stripped_model = (
             self._model.replace(" ", "").replace("-", "").replace("_", "").upper()[:4]
         )
+        _LOGGER.debug("Stripped Model %s", self._stripped_model)
         match self._stripped_model:
             # mode : command,mode_name_string, visible
             case "XMC1":
@@ -171,6 +179,7 @@ class Emotiva(object):
                     "dts Neural:X": ["dts", "mode_dts", True],
                 }
             case _:
+                _LOGGER.debug("Sound Modes Default")
                 self._modes = {
                     "Stereo": ["stereo", "mode_stereo", True],
                     "Direct": ["direct", "mode_direct", True],
@@ -210,13 +219,7 @@ class Emotiva(object):
 
         self._muted = False
 
-        if not self._ctrl_port or not self._notify_port:
-            self.__parse_transponder(transp_xml)
-
         self._local_ip = self._get_local_ip()
-
-        if not self._ctrl_port or not self._notify_port:
-            raise InvalidTransponderResponseError("Coulnd't find ctrl/notify ports")
 
     def _get_local_ip(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
