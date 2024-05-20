@@ -121,8 +121,13 @@ class Emotiva(object):
         self._udp_stream = None
         self._update_cb = None
         self._remote_update_cb = None
-        match _model:
-            case "XMC-1":
+        self._stripped_model = (
+            self._model.replace(" ", "").replace("-", "").replace("_", "").upper()[:4]
+        )
+        match self._stripped_model:
+            # mode : command,mode_name_string, visible
+            case "XMC1":
+                _LOGGER.debug("Sound Modes for XMC-1")
                 self._modes = {
                     "Stereo": ["stereo", "mode_stereo", True],
                     "Direct": ["direct", "mode_direct", True],
@@ -132,12 +137,13 @@ class Emotiva(object):
                     "Auto": ["auto", "mode_auto", True],
                     "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
                     "Surround": ["surround_mode", "mode_surround", True],
-                    "PLIIx Music": ["dolby", "mode_pliix_music", True],
-                    "PLIIx Movie": ["dolby", "mode_pliix_movie", True],
-                    "dts Neo:6 Cinema": ["dts", "mode_dts_cinema", True],
-                    "dts Neo:6 Music": ["dts", "mode_dts_music", True],
+                    "PLIIx Music": ["dolby", "mode_dolby", True],
+                    "PLIIx Movie": ["dolby", "mode_dolby", True],
+                    "dts Neo:6 Cinema": ["dts", "mode_dts", True],
+                    "dts Neo:6 Music": ["dts", "mode_dts", True],
                 }
-            case "XMC-2":
+            case "XMC2":
+                _LOGGER.debug("Sound Modes for XMC-2")
                 self._modes = {
                     "Stereo": ["stereo", "mode_stereo", True],
                     "Direct": ["direct", "mode_direct", True],
@@ -147,12 +153,11 @@ class Emotiva(object):
                     "Auto": ["auto", "mode_auto", True],
                     "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
                     "Surround": ["surround_mode", "mode_surround", True],
-                    "PLIIIx Music": ["dolby", "mode_pliix_music", True],
-                    "PLIIIx Movie": ["dolby", "mode_pliix_movie", True],
-                    "dts Neo:6 Cinema": ["dts", "mode_dts_cinema", True],
-                    "dts Neo:6 Music": ["dts", "mode_dts_music", True],
+                    "Dolby Surround": ["dolby", "mode_dolby", True],
+                    "dts Neural:X": ["dts", "mode_dts", True],
                 }
-            case "RMC-1":
+            case "RMC1":
+                _LOGGER.debug("Sound Modes for RMC-1")
                 self._modes = {
                     "Stereo": ["stereo", "mode_stereo", True],
                     "Direct": ["direct", "mode_direct", True],
@@ -162,25 +167,8 @@ class Emotiva(object):
                     "Auto": ["auto", "mode_auto", True],
                     "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
                     "Surround": ["surround_mode", "mode_surround", True],
-                    "PLIIx Music": ["dolby", "mode_pliix_music", True],
-                    "PLIIx Movie": ["dolby", "mode_pliix_movie", True],
-                    "dts Neo:6 Cinema": ["dts", "mode_dts_cinema", True],
-                    "dts Neo:6 Music": ["dts", "mode_dts_music", True],
-                }
-            case "RMC-1l":
-                self._modes = {
-                    "Stereo": ["stereo", "mode_stereo", True],
-                    "Direct": ["direct", "mode_direct", True],
-                    "Dolby": ["dolby", "mode_dolby", True],
-                    "DTS": ["dts", "mode_dts", True],
-                    "All Stereo": ["all_stereo", "mode_all_stereo", True],
-                    "Auto": ["auto", "mode_auto", True],
-                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
-                    "Surround": ["surround_mode", "mode_surround", True],
-                    "PLIIx Music": ["dolby", "mode_pliix_music", True],
-                    "PLIIx Movie": ["dolby", "mode_pliix_movie", True],
-                    "dts Neo:6 Cinema": ["dts", "mode_dts_cinema", True],
-                    "dts Neo:6 Music": ["dts", "mode_dts_music", True],
+                    "Dolby Surround": ["dolby", "mode_dolby", True],
+                    "dts Neural:X": ["dts", "mode_dts", True],
                 }
             case _:
                 self._modes = {
@@ -192,19 +180,31 @@ class Emotiva(object):
                     "Auto": ["auto", "mode_auto", True],
                     "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
                     "Surround": ["surround_mode", "mode_surround", True],
-                    "PLIIx Music": ["dolby", "mode_pliix_music", True],
-                    "PLIIx Movie": ["dolby", "mode_pliix_movie", True],
-                    "dts Neo:6 Cinema": ["dts", "mode_dts_cinema", True],
-                    "dts Neo:6 Music": ["dts", "mode_dts_music", True],
+                    "PLIIx Music": ["dolby", "mode_dolby", True],
+                    "PLIIx Movie": ["dolby", "mode_dolby", True],
+                    "dts Neo:6 Cinema": ["dts", "mode_dts", True],
+                    "dts Neo:6 Music": ["dts", "mode_dts", True],
                 }
         self._events = events
 
         # current state
         self._current_state = dict(((ev, None) for ev in self._events))
         self._current_state.update(dict(((m[1], None) for m in self._modes.values())))
-        # Add states for the hidden music modes
+        # Add states for the initial music modes
         self._current_state.update(
-            {"selected_movie_music": None, "mode_music": "Music", "mode_movie": "Movie"}
+            {
+                "selected_movie_music": "Music",
+                "mode_music": "Music",
+                "mode_movie": "Movie",
+                "mode_dolby": "Dolby",
+                "mode_dts": "DTS",
+                "mode_auto": "Auto",
+                "mode_direct": "Direct",
+                "mode_surround": "Surround",
+                "mode_stereo": "Stereo",
+                "mode_all_stereo": "All Stereo",
+                "mode_ref_stereo": "Reference Stereo",
+            }
         )
         self._sources = {}
 
@@ -662,13 +662,41 @@ class Emotiva(object):
     @property
     def modes(self):
         # we return only the modes that are active
-        return tuple(
-            dict(filter(lambda elem: elem[1][2] == True, self._modes.items())).keys()
-        )
+        #        return tuple(
+        #            dict(filter(lambda elem: elem[1][2] == True, self._modes.items())).keys()
+        #        )
+
+        _modes = set()
+        for m in self._modes.values():
+            if m[2]:  # Item is visible
+                if self._current_state[m[1]] in [
+                    self._current_state["mode_dolby"],
+                    self._current_state["mode_dts"],
+                ]:
+                    _modes.add(
+                        self._current_state[m[1]]
+                        + " "
+                        + self._current_state["mode_movie"]
+                    )
+                    _modes.add(
+                        self._current_state[m[1]]
+                        + " "
+                        + self._current_state["mode_music"]
+                    )
+                else:
+                    _modes.add(self._current_state[m[1]])
+        return tuple(sorted(_modes))
 
     @property
     def mode(self):
-        return self._current_state["mode"]
+        _mode = self._modes[self._current_state["mode"]]
+        _modename = self._current_state[_mode[1]]
+        if self._current_state[_mode[1]] in [
+            self._current_state["mode_dolby"],
+            self._current_state["mode_dts"],
+        ]:
+            _modename = _modename + " " + self._current_state["selected_movie_music"]
+        return _modename
 
     # @mode.setter
     # def mode(self, val):
@@ -680,18 +708,34 @@ class Emotiva(object):
     # 	self._send_emotivacontrol(self._modes[val][0],0)
 
     async def async_set_mode(self, val):
+        _music = False
+        _movie = False
+
+        if self._current_state["mode_movie"] in val:
+            _movie = True
+            val = val.replace(" " + self._current_state["mode_movie"], "")
+        if self._current_state["mode_music"] in val:
+            _music = True
+            val = val.replace(" " + self._current_state["mode_music"], "")
+
         if val not in self._modes:
             raise InvalidModeError('Mode "%s" does not exist' % val)
         elif self._modes[val][0] is None:
             raise InvalidModeError(
-                'Mode "%s" has bad value (%s)' % (val, self._modes[val][0])
+                'Mode "%s" has bad command value (%s)' % (val, self._modes[val][0])
             )
         await self._async_send_emotivacontrol(self._modes[val][0], "0")
-        if "Music" in val and self._current_state["selected_movie_music"] != "Music":
+        if (
+            _music
+            and self._current_state["selected_movie_music"]
+            != self._current_state["mode_music"]
+        ):
             await asyncio.sleep(0.5)
             await self._async_send_emotivacontrol("music", "0")
-        elif ("Movie" in val or "Cinema" in val) and self._current_state[
-            "selected_movie_music"
-        ] != "Movie":
+        elif (
+            _movie
+            and self._current_state["selected_movie_music"]
+            != self._current_state["mode_movie"]
+        ):
             await asyncio.sleep(0.5)
             await self._async_send_emotivacontrol("movie", "0")
