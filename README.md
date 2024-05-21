@@ -4,7 +4,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
 
-This custom component implements a media player entity and a remote entity for Home Assistant to allow for integration with Emotiva processors.  It's written for the Emotiva XMC-1 but how also been tested with XMC-2 and RMC-1 and works generally fine.  There are some limitiations with the XMC-2 and RMC-1 where the published API doesn't support some functions on these devices.  This includes the ability to switch between speaker presets/Dirac etc., where the API only supports the XMC-1 preset design and Emotiva have no plans to update the API in this area for the Gen 3 processors.
+This custom component implements a media player entity and a remote entity for Home Assistant to allow for integration with Emotiva processors.  It's written for the Emotiva XMC-1 but now also been tested with XMC-2 and RMC-1 and works generally fine.  There are some limitiations with the XMC-2 and RMC-1 where the published API doesn't support some functions on these devices.  This includes the ability to switch between speaker presets/Dirac etc., where the API only supports the XMC-1 preset design and Emotiva have no plans to update the API in this area for the Gen 3 processors.
 
 The integration is a Local Push integration - i.e. it subscribes to notification of changes to the processor, so doesn't need to periodically poll the processor for its state.
 
