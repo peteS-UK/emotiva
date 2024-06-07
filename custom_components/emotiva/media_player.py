@@ -19,7 +19,7 @@ from homeassistant.components.media_player import (
 from homeassistant import config_entries, core
 
 from homeassistant.const import CONF_HOST, CONF_NAME
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
     config_validation as cv,
     discovery_flow,
@@ -115,22 +115,25 @@ class EmotivaDevice(MediaPlayerEntity):
         await self._device.async_subscribe_events()
 
     async def async_added_to_hass(self):
+        #        super().async_added_to_hass()
         """Subscribe to device events."""
+        _LOGGER.debug("Adding callback")
         self._device.set_update_cb(self.async_update_callback)
 
         async_at_start(self._hass, self._async_startup)
 
+    @callback
     def async_update_callback(self, reason=False):
         """Update the device's state."""
         _LOGGER.debug("Calling async_schedule_update_ha_state")
         self.async_schedule_update_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:
-        """Disconnect device object when removed."""
-        self._device.set_update_cb(None)
-        self._device.set_remote_update_cb(None)
 
         await self._device.async_unsubscribe_events()
+
+        self._device.set_update_cb(None)
+
         await self._device.udp_disconnect()
 
         await self._device.stop_notifier()
@@ -282,9 +285,7 @@ class EmotivaDevice(MediaPlayerEntity):
     # 	self._device._update_status(self._device._events, float(self._device._proto_ver))
 
     async def async_update(self):
-        await self._device.async_update_status(
-            self._device._events, float(self._device._proto_ver)
-        )
+        await self._device.async_update_status(self._device._events)
 
     async def async_select_source(self, source: str) -> None:
         await self._device.async_set_source(source)

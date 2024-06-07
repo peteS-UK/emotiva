@@ -54,8 +54,10 @@ class EmotivaNotifier(object):
 
         while True and stream is not None:
             data, remote_addr = await stream.recv()
-
-            _LOGGER.debug("### Received notification %s", data)
+            _LOGGER.debug(
+                "### Received notification %s",
+                data.decode() if isinstance(data, bytes) else data,
+            )
 
             cb = self._devs[ip]
 
@@ -90,7 +92,7 @@ class Emotiva(object):
         ]
     ).union(set(["input_%d" % d for d in range(1, 9)]))
 
-    __notifier = EmotivaNotifier()
+    # __notifier = EmotivaNotifier()
 
     def __init__(
         self,
@@ -100,7 +102,7 @@ class Emotiva(object):
         _notify_port=None,
         _name="Unknown_name",
         _model="Unknown_model",
-        _proto_ver=None,
+        _proto_ver=2.0,
         _info_port=None,
         _setup_port=None,
         events=NOTIFY_EVENTS,
@@ -109,7 +111,7 @@ class Emotiva(object):
         self._ip = ip
         self._name = _name
         self._model = _model
-        self._proto_ver = _proto_ver
+        self._proto_ver = float(_proto_ver)
         self._ctrl_port = _ctrl_port
         self._notify_port = _notify_port
         self._info_port = _info_port
@@ -121,6 +123,8 @@ class Emotiva(object):
         self._udp_stream = None
         self._update_cb = None
         self._remote_update_cb = None
+
+        self.__notifier = EmotivaNotifier()
 
         if not self._ctrl_port or not self._notify_port:
             self.__parse_transponder(transp_xml)
@@ -253,40 +257,47 @@ class Emotiva(object):
         await self._unsubscribe_events(self._events)
 
     def _notify_handler(self, data):
-        # _LOGGER.debug("Notify Handler received: %s", data)
+        _LOGGER.debug("Notify Handler called")
         resp = self._parse_response(data)
         self._handle_status(resp)
 
     async def _subscribe_events(self, events):
-        msg = self.format_request("emotivaSubscription", [(ev, None) for ev in events])
+        msg = self.format_request(
+            "emotivaSubscription",
+            [(ev, None) for ev in events],
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else {},
+        )
         await self._async_send_request(msg, ack=True)
 
     async def _unsubscribe_events(self, events):
-        msg = self.format_request("emotivaUnsubscribe", [(ev, None) for ev in events])
+        msg = self.format_request(
+            "emotivaUnsubscribe",
+            [(ev, None) for ev in events],
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else {},
+        )
         await self._async_send_request(msg, ack=True)
 
     def disconnect(self):
         self._ctrl_sock.close()
 
-    async def async_update_status(self, events, _proto_ver=2.0):
+    async def async_update_status(self, events):
         msg = self.format_request(
             "emotivaUpdate",
             [(ev, {}) for ev in events],
-            {"protocol": "3.0"} if _proto_ver == 3 else {},
+            {"protocol": "3.0"} if self._proto_ver == 3 else {},
         )
-        # {})
         await self._async_send_request(msg, ack=True)
 
-    def update_status(self, events, _proto_ver=2.0):
+    """def update_status(self, events, _proto_ver=2.0):
         msg = self.format_request(
             "emotivaUpdate",
             [(ev, {}) for ev in events],
             {"protocol": "3.0"} if _proto_ver == 3 else {},
         )
         # {})
-        self._send_request(msg, ack=True)
+        self._send_request(msg, ack=True)"""
 
-    def _send_request(self, req, ack=False, process_response=True):
+    """def _send_request(self, req, ack=False, process_response=True):
 
         self.connect()
 
@@ -314,7 +325,7 @@ class Emotiva(object):
                 _LOGGER.debug("socket.timeout on ack")
                 break
 
-        self.disconnect()
+        self.disconnect()"""
 
     async def udp_connect(self):
         try:
@@ -384,15 +395,17 @@ class Emotiva(object):
 
     async def _async_send_emotivacontrol(self, command, value):
         msg = self.format_request(
-            "emotivaControl", [(command, {"value": str(value), "ack": "yes"})]
+            "emotivaControl",
+            [(command, {"value": str(value), "ack": "yes"})],
+            {"protocol": "3.0"} if self._proto_ver == 3 else {},
         )
         await self._async_send_request(msg, ack=True, process_response=False)
 
-    def _send_emotivacontrol(self, command, value):
+    """def _send_emotivacontrol(self, command, value):
         msg = self.format_request(
             "emotivaControl", [(command, {"value": str(value), "ack": "yes"})]
         )
-        self._send_request(msg, ack=True, process_response=False)
+        self._send_request(msg, ack=True, process_response=False)"""
 
     def __parse_transponder(self, transp_xml):
         # _LOGGER.debug("transp_xml %s", transp_xml)
@@ -406,7 +419,7 @@ class Emotiva(object):
         ctrl = transp_xml.find("control")
         elem = ctrl.find("version")
         if elem is not None:
-            self._proto_ver = elem.text
+            self._proto_ver = float(elem.text)
         elem = ctrl.find("controlPort")
         if elem is not None:
             self._ctrl_port = int(elem.text)
@@ -421,6 +434,7 @@ class Emotiva(object):
             self._setup_port_tcp = int(elem.text)
 
     def _handle_status(self, resp):
+        _LOGGER.debug("_handle_status called")
         for elem in resp:
             if elem.tag == "property":
                 # v3 protocol style response, convert it to v2 style
@@ -452,10 +466,17 @@ class Emotiva(object):
             if elem.tag.startswith("input_"):
                 num = elem.tag[6:]
                 self._sources[val] = int(num)
+
         if self._update_cb:
+            _LOGGER.debug("_update_cb")
             self._update_cb()
+        else:
+            _LOGGER.debug("_update_cb not defined")
         if self._remote_update_cb:
+            _LOGGER.debug("_remote_update_cb")
             self._remote_update_cb()
+        else:
+            _LOGGER.debug("_remote_update_cb not defined")
 
     def set_remote_update_cb(self, cb):
         self._remote_update_cb = cb
@@ -481,19 +502,27 @@ class Emotiva(object):
         req_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         req_sock.bind(("", 0))
         req_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        if version == 3:
+        """if version == 3:
             req = cls.format_request("emotivaPing", {}, {"protocol": "3.0"})
         else:
-            req = cls.format_request("emotivaPing")
-        # _LOGGER.debug("Broadcast Req: %s", req)
+            req = cls.format_request("emotivaPing")"""
+
+        req = cls.format_request(
+            "emotivaPing",
+            {},
+            {"protocol": "3.0"} if version == 3.0 else {},
+        )
+
+        _LOGGER.debug("discover Broadcast Req: %s", req)
         req_sock.sendto(req, ("<broadcast>", cls.DISCOVER_REQ_PORT))
 
         devices = []
         while True:
             try:
                 _resp_data, (ip, port) = resp_sock.recvfrom(4096)
-                # _LOGGER.debug("Parsing ping response")
+
                 resp = cls._parse_response(_resp_data)
+                _LOGGER.debug("Parsed ping response %s", resp)
                 devices.append((ip, resp))
             except socket.timeout:
                 break
@@ -596,16 +625,16 @@ class Emotiva(object):
     async def async_turn_on(self):
         await self._async_send_emotivacontrol("power_on", "0")
 
-    def set_input(self, source):
+    """def set_input(self, source):
         self._send_emotivacontrol(source, 0)
 
     def send_command(self, command, value):
-        self._send_emotivacontrol(command, value)
+        self._send_emotivacontrol(command, value)"""
 
     async def async_send_command(self, command, value):
         await self._async_send_emotivacontrol(command, value)
 
-    async def async_send_command_no_ack(self, command, value):
+    """async def async_send_command_no_ack(self, command, value):
 
         req = self.format_request(
             "emotivaControl", [(command, {"value": str(value), "ack": "no"})]
@@ -625,7 +654,7 @@ class Emotiva(object):
         except:
             _LOGGER.critical(
                 "Unknown error on command socket connection %s", sys.exc_info()[0]
-            )
+            )"""
 
     @property
     def mute(self):
