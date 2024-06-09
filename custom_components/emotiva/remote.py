@@ -66,7 +66,6 @@ class EmotivaDevice(RemoteEntity):
 
     async def async_added_to_hass(self):
         """Handle being added to hass."""
-        #        await super().async_added_to_hass()
         self._device.set_remote_update_cb(self.async_update_callback)
 
     async def async_will_remove_from_hass(self) -> None:
