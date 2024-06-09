@@ -22,7 +22,7 @@ from homeassistant.components.remote import (
 from homeassistant import config_entries, core
 
 from homeassistant.const import CONF_HOST, CONF_NAME
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import (
     config_validation as cv,
     discovery_flow,
@@ -72,6 +72,7 @@ class EmotivaDevice(RemoteEntity):
     async def async_will_remove_from_hass(self) -> None:
         self._device.set_remote_update_cb(None)
 
+    @callback
     def async_update_callback(self, reason=False):
         """Update the device's state."""
         _LOGGER.debug("Calling async_schedule_update_ha_state")

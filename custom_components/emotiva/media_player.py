@@ -120,7 +120,14 @@ class EmotivaDevice(MediaPlayerEntity):
         _LOGGER.debug("Adding callback")
         self._device.set_update_cb(self.async_update_callback)
 
-        async_at_start(self._hass, self._async_startup)
+        # async_at_start(self._hass, self._async_startup)
+
+        self._notifier_task = self._hass.async_create_background_task(
+            self._device.run_notifier(), name="emotiva notifier task"
+        )
+
+        await self._device.udp_connect()
+        await self._device.async_subscribe_events()
 
     @callback
     def async_update_callback(self, reason=False):

@@ -55,7 +55,7 @@ class EmotivaNotifier(object):
         while True and stream is not None:
             data, remote_addr = await stream.recv()
             _LOGGER.debug(
-                "### Received notification %s",
+                "Received notification: \n%s",
                 data.decode() if isinstance(data, bytes) else data,
             )
 
@@ -375,7 +375,10 @@ class Emotiva(object):
         # await _stream.send(command, (self._ip, self._ctrl_port))
         if ack:
             resp, remote_addr = await self._udp_stream.recv()
-            _LOGGER.debug("_udp_client received: %s", resp.decode())
+            _LOGGER.debug(
+                "_udp_client received: \n%s",
+                resp.decode() if isinstance(resp, bytes) else resp,
+            )
         else:
             resp = None
 
@@ -468,15 +471,9 @@ class Emotiva(object):
                 self._sources[val] = int(num)
 
         if self._update_cb:
-            _LOGGER.debug("_update_cb")
             self._update_cb()
-        else:
-            _LOGGER.debug("_update_cb not defined")
         if self._remote_update_cb:
-            _LOGGER.debug("_remote_update_cb")
             self._remote_update_cb()
-        else:
-            _LOGGER.debug("_remote_update_cb not defined")
 
     def set_remote_update_cb(self, cb):
         self._remote_update_cb = cb
