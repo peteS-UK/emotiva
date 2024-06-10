@@ -523,7 +523,11 @@ class Emotiva(object):
                 devices.append((ip, resp))
             except socket.timeout:
                 break
-        return devices
+        # Only return the first discovered device
+        if len(devices) > 0:
+            return devices[0]
+        else:
+            return None
 
     @classmethod
     def _parse_response(cls, data):

@@ -67,7 +67,9 @@ async def validate_auth(hass: core.HomeAssistant, data: dict) -> None:
     if data["manual"] and (len(data["host"]) < 3 or len(data["name"]) < 1):
         # Manual entry requires host and name and model
         raise ValueError
-    if data["manual"] == False and data["discover"] == False:
+    if (data["manual"] == False and data["discover"] == False) or (
+        data["manual"] == True and data["discover"] == True
+    ):
         raise SelectError
 
     if data["manual"] and (len(data["model"]) < 1 or data["model"] not in _models):

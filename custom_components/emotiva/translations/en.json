@@ -3,7 +3,7 @@
     "config": {
       "error": {
         "data": "For manual config, you must enter the IP and Name of the processor and the model must be one of XMC-1, XMC-2, RMC-1 or RMC-1l",
-        "select": "You must either discover or enter details manually"
+        "select": "You must either discover or enter details manually, but not both"
       },
       "step": {
         "user": {

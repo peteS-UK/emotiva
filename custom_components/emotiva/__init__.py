@@ -32,24 +32,19 @@ async def async_setup_entry(
     hass.data.setdefault(DOMAIN, {})
     hass_data = dict(entry.data)
 
-    receivers = []
     emotiva = []
 
     if hass_data[CONF_DISCOVER]:
-        receivers = await hass.async_add_executor_job(Emotiva.discover, 3)
-        _configdiscovered = False
+        receiver = await hass.async_add_executor_job(Emotiva.discover, 3)
 
-        for receiver in receivers:
-
+        if receiver:
+            # Server was discovered
             _ip, _xml = receiver
 
             emotiva.append(Emotiva(_ip, _xml))
-
             _LOGGER.debug("Adding %s from discovery", _ip)
 
-    if hass_data[CONF_MANUAL] and not any(
-        [hass_data[CONF_HOST] in tup for tup in receivers]
-    ):
+    elif hass_data[CONF_MANUAL]:
         _LOGGER.debug(
             "Adding %s Name: %s Model: %s from config",
             hass_data[CONF_HOST],
@@ -69,7 +64,11 @@ async def async_setup_entry(
             )
         )
 
-        # Get additional notify
+    if len(emotiva) == 0:
+        _LOGGER.critical("No processor discovered, and no manual processor info")
+        return False
+
+    # Get additional notify
 
     if CONF_NOTIFICATIONS in entry.options:
         _update_extra_notifications(emotiva, entry.options[CONF_NOTIFICATIONS])
