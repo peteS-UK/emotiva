@@ -141,63 +141,66 @@ class Emotiva(object):
             case "XMC1":
                 _LOGGER.debug("Sound Modes for XMC-1")
                 self._modes = {
-                    "Stereo": ["stereo", "mode_stereo", True],
-                    "Direct": ["direct", "mode_direct", True],
-                    "Dolby": ["dolby", "mode_dolby", True],
-                    "DTS": ["dts", "mode_dts", True],
-                    "All Stereo": ["all_stereo", "mode_all_stereo", True],
-                    "Auto": ["auto", "mode_auto", True],
-                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
-                    "Surround": ["surround_mode", "mode_surround", True],
-                    "PLIIx Music": ["dolby", "mode_dolby", True],
-                    "PLIIx Movie": ["dolby", "mode_dolby", True],
-                    "dts Neo:6 Cinema": ["dts", "mode_dts", True],
-                    "dts Neo:6 Music": ["dts", "mode_dts", True],
+                    "Stereo": ["stereo", "mode_stereo", False],
+                    "Direct": ["direct", "mode_direct", False],
+                    "Dolby": ["dolby", "mode_dolby", False],
+                    "DTS": ["dts", "mode_dts", False],
+                    "All Stereo": ["all_stereo", "mode_all_stereo", False],
+                    "Auto": ["auto", "mode_auto", False],
+                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", False],
+                    "Surround": ["surround_mode", "mode_surround", False],
+                    "PLIIx Music": ["dolby", "mode_dolby", False],
+                    "PLIIx Movie": ["dolby", "mode_dolby", False],
+                    "dts Neo:6 Cinema": ["dts", "mode_dts", False],
+                    "dts Neo:6 Music": ["dts", "mode_dts", False],
                 }
             case "XMC2":
                 _LOGGER.debug("Sound Modes for XMC-2")
                 self._modes = {
-                    "Stereo": ["stereo", "mode_stereo", True],
-                    "Direct": ["direct", "mode_direct", True],
-                    "Dolby": ["dolby", "mode_dolby", True],
-                    "DTS": ["dts", "mode_dts", True],
-                    "All Stereo": ["all_stereo", "mode_all_stereo", True],
-                    "Auto": ["auto", "mode_auto", True],
-                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
-                    "Surround": ["surround_mode", "mode_surround", True],
-                    "Dolby Surround": ["dolby", "mode_dolby", True],
-                    "dts Neural:X": ["dts", "mode_dts", True],
+                    "Stereo": ["stereo", "mode_stereo", False],
+                    "Direct": ["direct", "mode_direct", False],
+                    "Dolby": ["dolby", "mode_dolby", False],
+                    "DTS": ["dts", "mode_dts", False],
+                    "All Stereo": ["all_stereo", "mode_all_stereo", False],
+                    "Auto": ["auto", "mode_auto", False],
+                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", False],
+                    "Surround": ["surround_mode", "mode_surround", False],
+                    "Dolby ATMOS": ["dolby", "mode_dolby", False],
+                    "dts Neural:X": ["dts", "mode_dts", False],
+                    "Dolby Surround": ["dolby", "mode_dolby", False],
                 }
             case "RMC1":
                 _LOGGER.debug("Sound Modes for RMC-1")
                 self._modes = {
-                    "Stereo": ["stereo", "mode_stereo", True],
-                    "Direct": ["direct", "mode_direct", True],
-                    "Dolby": ["dolby", "mode_dolby", True],
-                    "DTS": ["dts", "mode_dts", True],
-                    "All Stereo": ["all_stereo", "mode_all_stereo", True],
-                    "Auto": ["auto", "mode_auto", True],
-                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
-                    "Surround": ["surround_mode", "mode_surround", True],
-                    "Dolby Surround": ["dolby", "mode_dolby", True],
-                    "dts Neural:X": ["dts", "mode_dts", True],
+                    "Stereo": ["stereo", "mode_stereo", False],
+                    "Direct": ["direct", "mode_direct", False],
+                    "Dolby": ["dolby", "mode_dolby", False],
+                    "DTS": ["dts", "mode_dts", False],
+                    "All Stereo": ["all_stereo", "mode_all_stereo", False],
+                    "Auto": ["auto", "mode_auto", False],
+                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", False],
+                    "Surround": ["surround_mode", "mode_surround", False],
+                    "Dolby Surround": ["dolby", "mode_dolby", False],
+                    "Dolby ATMOS": ["dolby", "mode_dolby", False],
+                    "dts Neural:X": ["dts", "mode_dts", False],
                 }
             case _:
                 _LOGGER.debug("Sound Modes Default")
                 self._modes = {
-                    "Stereo": ["stereo", "mode_stereo", True],
-                    "Direct": ["direct", "mode_direct", True],
-                    "Dolby": ["dolby", "mode_dolby", True],
-                    "DTS": ["dts", "mode_dts", True],
-                    "All Stereo": ["all_stereo", "mode_all_stereo", True],
-                    "Auto": ["auto", "mode_auto", True],
-                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", True],
-                    "Surround": ["surround_mode", "mode_surround", True],
-                    "PLIIx Music": ["dolby", "mode_dolby", True],
-                    "PLIIx Movie": ["dolby", "mode_dolby", True],
-                    "dts Neo:6 Cinema": ["dts", "mode_dts", True],
-                    "dts Neo:6 Music": ["dts", "mode_dts", True],
+                    "Stereo": ["stereo", "mode_stereo", False],
+                    "Direct": ["direct", "mode_direct", False],
+                    "Dolby": ["dolby", "mode_dolby", False],
+                    "DTS": ["dts", "mode_dts", False],
+                    "All Stereo": ["all_stereo", "mode_all_stereo", False],
+                    "Auto": ["auto", "mode_auto", False],
+                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", False],
+                    "Surround": ["surround_mode", "mode_surround", False],
+                    "PLIIx Music": ["dolby", "mode_dolby", False],
+                    "PLIIx Movie": ["dolby", "mode_dolby", False],
+                    "dts Neo:6 Cinema": ["dts", "mode_dts", False],
+                    "dts Neo:6 Music": ["dts", "mode_dts", False],
                 }
+
         self._events = events
 
         # current state
@@ -288,45 +291,6 @@ class Emotiva(object):
         )
         await self._async_send_request(msg, ack=True)
 
-    """def update_status(self, events, _proto_ver=2.0):
-        msg = self.format_request(
-            "emotivaUpdate",
-            [(ev, {}) for ev in events],
-            {"protocol": "3.0"} if _proto_ver == 3 else {},
-        )
-        # {})
-        self._send_request(msg, ack=True)"""
-
-    """def _send_request(self, req, ack=False, process_response=True):
-
-        self.connect()
-
-        try:
-            self._ctrl_sock.sendto(req, (self._ip, self._ctrl_port))
-        except:
-            # try and reconnect and send again
-            _LOGGER.debug("Connection lost.  Attepting to reconnect")
-            try:
-                self.connect()
-                self._ctrl_sock.sendto(req, (self._ip, self._ctrl_port))
-            except:
-                _LOGGER.debug("Cannot reconnect to processor")
-
-        while ack:
-            try:
-                _resp_data, (ip, port) = self._ctrl_sock.recvfrom(4096)
-                #
-                # _LOGGER.debug("Response on ack: %s",_resp_data)
-                if process_response == True:
-                    resp = self._parse_response(_resp_data)
-                    self._handle_status(resp)
-                break
-            except socket.timeout:
-                _LOGGER.debug("socket.timeout on ack")
-                break
-
-        self.disconnect()"""
-
     async def udp_connect(self):
         try:
             self._udp_stream = await asyncio_datagram.connect(
@@ -404,12 +368,6 @@ class Emotiva(object):
         )
         await self._async_send_request(msg, ack=True, process_response=False)
 
-    """def _send_emotivacontrol(self, command, value):
-        msg = self.format_request(
-            "emotivaControl", [(command, {"value": str(value), "ack": "yes"})]
-        )
-        self._send_request(msg, ack=True, process_response=False)"""
-
     def __parse_transponder(self, transp_xml):
         # _LOGGER.debug("transp_xml %s", transp_xml)
         elem = transp_xml.find("name")
@@ -449,11 +407,13 @@ class Emotiva(object):
             val = (elem.get("value") or "").strip()
             visible = (elem.get("visible") or "").strip()
             # update mode status
-            if elem.tag.startswith("mode_") and visible != "true":
-                _LOGGER.debug(" %s is no longer visible" % elem.tag)
+            if elem.tag.startswith("mode_"):
                 for v in self._modes.items():
-                    if v[1][1] == elem.tag:
-                        v[1][2] = False
+                    if v[1][1] == elem.tag and v[1][2] != visible:
+                        v[1][2] = True if visible == "true" else False
+                        _LOGGER.debug(
+                            " Changing visibility of %s to %s", elem.tag, visible
+                        )
                         self._modes.update({v[0]: v[1]})
             # do not
             if elem.tag.startswith("input_") and visible != "true":
@@ -474,9 +434,14 @@ class Emotiva(object):
             self._update_cb()
         if self._remote_update_cb:
             self._remote_update_cb()
+        if self._select_update_cb:
+            self._select_update_cb()
 
     def set_remote_update_cb(self, cb):
         self._remote_update_cb = cb
+
+    def set_select_update_cb(self, cb):
+        self._select_update_cb = cb
 
     def set_update_cb(self, cb):
         self._update_cb = cb
@@ -499,10 +464,6 @@ class Emotiva(object):
         req_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         req_sock.bind(("", 0))
         req_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        """if version == 3:
-            req = cls.format_request("emotivaPing", {}, {"protocol": "3.0"})
-        else:
-            req = cls.format_request("emotivaPing")"""
 
         req = cls.format_request(
             "emotivaPing",
@@ -626,36 +587,8 @@ class Emotiva(object):
     async def async_turn_on(self):
         await self._async_send_emotivacontrol("power_on", "0")
 
-    """def set_input(self, source):
-        self._send_emotivacontrol(source, 0)
-
-    def send_command(self, command, value):
-        self._send_emotivacontrol(command, value)"""
-
     async def async_send_command(self, command, value):
         await self._async_send_emotivacontrol(command, value)
-
-    """async def async_send_command_no_ack(self, command, value):
-
-        req = self.format_request(
-            "emotivaControl", [(command, {"value": str(value), "ack": "no"})]
-        )
-
-        _LOGGER.debug("IP : %s, Port %d, req %s", self._ip, self._ctrl_port, req)
-
-        try:
-            _stream = await asyncio_datagram.connect((self._ip, self._ctrl_port))
-            await _stream.send(req)
-            _stream.close()
-
-        except IOError as e:
-            _LOGGER.critical(
-                "Cannot connect to command socket %d: %s", e.errno, e.strerror
-            )
-        except:
-            _LOGGER.critical(
-                "Unknown error on command socket connection %s", sys.exc_info()[0]
-            )"""
 
     @property
     def mute(self):
@@ -695,61 +628,21 @@ class Emotiva(object):
     @property
     def modes(self):
         # we return only the modes that are active
-        #        return tuple(
-        #            dict(filter(lambda elem: elem[1][2] == True, self._modes.items())).keys()
-        #        )
-
-        _modes = set()
-        for m in self._modes.values():
-            if m[2]:  # Item is visible
-                if self._current_state[m[1]] in [
-                    self._current_state["mode_dolby"],
-                    self._current_state["mode_dts"],
-                ]:
-                    _modes.add(
-                        self._current_state[m[1]]
-                        + " "
-                        + self._current_state["mode_movie"]
-                    )
-                    _modes.add(
-                        self._current_state[m[1]]
-                        + " "
-                        + self._current_state["mode_music"]
-                    )
-                else:
-                    _modes.add(self._current_state[m[1]])
-        return tuple(sorted(_modes))
+        return tuple(
+            dict(filter(lambda elem: elem[1][2] == True, self._modes.items())).keys()
+        )
 
     @property
     def mode(self):
-        _mode = self._modes[self._current_state["mode"]]
-        _modename = self._current_state[_mode[1]]
-        if self._current_state[_mode[1]] in [
-            self._current_state["mode_dolby"],
-            self._current_state["mode_dts"],
-        ]:
-            _modename = _modename + " " + self._current_state["selected_movie_music"]
-        return _modename
+        _LOGGER.debug("Current sound mode %s", self._current_state["mode"])
 
-    # @mode.setter
-    # def mode(self, val):
-    # 	if val not in self._modes:
-    # 		raise InvalidModeError('Mode "%s" does not exist' % val)
-    # 	elif self._modes[val][0] is None:
-    # 		raise InvalidModeError('Mode "%s" has bad value (%s)' % (
-    # 				val, self._modes[val][0]))
-    # 	self._send_emotivacontrol(self._modes[val][0],0)
+        try:
+            return self._current_state["mode"]
+        except:
+            _LOGGER.error("Unknown sound mode %s", self._current_state["mode"])
+            return ""
 
     async def async_set_mode(self, val):
-        _music = False
-        _movie = False
-
-        if self._current_state["mode_movie"] in val:
-            _movie = True
-            val = val.replace(" " + self._current_state["mode_movie"], "")
-        if self._current_state["mode_music"] in val:
-            _music = True
-            val = val.replace(" " + self._current_state["mode_music"], "")
 
         if val not in self._modes:
             raise InvalidModeError('Mode "%s" does not exist' % val)
@@ -758,17 +651,16 @@ class Emotiva(object):
                 'Mode "%s" has bad command value (%s)' % (val, self._modes[val][0])
             )
         await self._async_send_emotivacontrol(self._modes[val][0], "0")
-        if (
-            _music
-            and self._current_state["selected_movie_music"]
-            != self._current_state["mode_music"]
-        ):
-            await asyncio.sleep(0.5)
+
+        if self._current_state["mode_music"] in val:
+            _LOGGER.debug(
+                "Sound Mode Music.  mode_music %s", self._current_state["mode_music"]
+            )
+            await asyncio.sleep(0.25)
             await self._async_send_emotivacontrol("music", "0")
-        elif (
-            _movie
-            and self._current_state["selected_movie_music"]
-            != self._current_state["mode_movie"]
-        ):
-            await asyncio.sleep(0.5)
+        elif self._current_state["mode_movie"] in val or "cinema" in val:
+            _LOGGER.debug(
+                "Sound Mode Movie.  mode_movie %s", self._current_state["mode_movie"]
+            )
+            await asyncio.sleep(0.25)
             await self._async_send_emotivacontrol("movie", "0")

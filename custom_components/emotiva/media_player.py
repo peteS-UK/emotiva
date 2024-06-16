@@ -127,6 +127,9 @@ class EmotivaDevice(MediaPlayerEntity):
         await self._device.udp_connect()
         await self._device.async_subscribe_events()
 
+        _LOGGER.debug("mode in async_added %s", self._device.mode)
+        await self._device.async_set_mode(self._device.mode)
+
     @callback
     def async_update_callback(self, reason=False):
         """Update the device's state."""
