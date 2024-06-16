@@ -167,6 +167,7 @@ class Emotiva(object):
                     "Surround": ["surround_mode", "mode_surround", False],
                     "Dolby ATMOS": ["dolby", "mode_dolby", False],
                     "dts Neural:X": ["dts", "mode_dts", False],
+                    "Dolby Surround": ["dolby", "mode_dolby", False],
                 }
             case "RMC1":
                 _LOGGER.debug("Sound Modes for RMC-1")
@@ -180,6 +181,7 @@ class Emotiva(object):
                     "Reference Stereo": ["reference_stereo", "mode_ref_stereo", False],
                     "Surround": ["surround_mode", "mode_surround", False],
                     "Dolby Surround": ["dolby", "mode_dolby", False],
+                    "Dolby ATMOS": ["dolby", "mode_dolby", False],
                     "dts Neural:X": ["dts", "mode_dts", False],
                 }
             case _:
