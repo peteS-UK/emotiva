@@ -436,12 +436,17 @@ class Emotiva(object):
             self._remote_update_cb()
         if self._select_update_cb:
             self._select_update_cb()
+        if self._sensor_update_cb:
+            self._sensor_update_cb()
 
     def set_remote_update_cb(self, cb):
         self._remote_update_cb = cb
 
     def set_select_update_cb(self, cb):
         self._select_update_cb = cb
+
+    def set_sensor_update_cb(self, cb):
+        self._sensor_update_cb = cb
 
     def set_update_cb(self, cb):
         self._update_cb = cb
