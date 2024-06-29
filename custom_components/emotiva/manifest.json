@@ -8,6 +8,6 @@
     "iot_class": "local_push",
     "issue_tracker": "https://github.com/peteS-UK/emotiva/issues",
     "requirements": ["lxml","asyncio_datagram"],
-    "version": "1.9.0"
+    "version": "1.9.1"
   }
   
