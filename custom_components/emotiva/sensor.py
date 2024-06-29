@@ -98,7 +98,10 @@ class EmotivaDevice(SensorEntity):
 
     @property
     def icon(self):
-        return "mdi:volume-high"
+        if self._device.mute == True:
+            return "mdi:volume-off"
+        else:
+            return "mdi:volume-high"
 
     @entity_id.setter
     def entity_id(self, entity_id):
