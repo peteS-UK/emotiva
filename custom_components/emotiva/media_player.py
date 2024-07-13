@@ -104,6 +104,15 @@ class EmotivaDevice(MediaPlayerEntity):
         ).replace(":", "_")
         self._device_class = "receiver"
         self._notifier_task = None
+        self._record_atrributes = {
+            "audio_input",
+            "mode",
+            "volume",
+            "source",
+            "video_format",
+            "video_input",
+            "audio_bitstream",
+        }
 
     """async def _async_startup(self, loop):
 
@@ -254,7 +263,24 @@ class EmotivaDevice(MediaPlayerEntity):
 
         if self._device.mute == True:
             _attributes["volume"] = "0"
+
         return _attributes
+
+    _unrecorded_attributes = frozenset(
+        {
+            "source_list",
+            "sound_mode_list",
+            "input_1",
+            "input_2",
+            "input_3",
+            "input_4",
+            "input_5",
+            "input_6",
+            "input_7",
+            "input_8",
+            "icon",
+        }
+    )
 
     @property
     def volume_level(self):
