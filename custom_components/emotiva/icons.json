@@ -1,11 +1,10 @@
 {
-    "services": 
-    {
-      "send_command" :"mdi:send"
-    },
-    "select": {
-      "source": {
-        "default": "mdi:hdmi-port"
-      }
+  "services": {
+    "send_command": "mdi:send"
+  },
+  "select": {
+    "source": {
+      "default": "mdi:hdmi-port"
     }
+  }
 }

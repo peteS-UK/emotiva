@@ -1,16 +1,8 @@
 from __future__ import annotations
 
 import logging
-import asyncio
-
-from collections.abc import Iterable
-from typing import Any
 
 from .const import DOMAIN
-
-from .emotiva import Emotiva
-
-import voluptuous as vol
 
 from homeassistant.components.select import (
     SelectEntity,
@@ -18,10 +10,7 @@ from homeassistant.components.select import (
 
 from homeassistant import config_entries, core
 
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import (
-    config_validation as cv,
-)
+from homeassistant.core import callback
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
@@ -33,7 +22,6 @@ async def async_setup_entry(
     config_entry: config_entries.ConfigEntry,
     async_add_entities,
 ) -> None:
-
     config = hass.data[DOMAIN][config_entry.entry_id]
 
     if config_entry.options:
@@ -49,7 +37,6 @@ class EmotivaDevice(SelectEntity):
     # Representation of a Emotiva Processor
 
     def __init__(self, device, hass):
-
         self._device = device
         self._hass = hass
         self._entity_id = "select.emotivaprocessor_source"
