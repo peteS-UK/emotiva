@@ -1,13 +1,17 @@
 {
-    "domain": "emotiva",
-    "name": "Emotiva Processor",
-    "codeowners": ["@peteS-UK"],
-    "config_flow": true,
-    "dependencies": [],
-    "documentation": "https://github.com/peteS-UK/emotiva/blob/main/README.md",
-    "iot_class": "local_push",
-    "issue_tracker": "https://github.com/peteS-UK/emotiva/issues",
-    "requirements": ["lxml","asyncio_datagram"],
-    "version": "1.9.1"
-  }
-  
+  "domain": "emotiva",
+  "name": "Emotiva Processor",
+  "codeowners": [
+    "@peteS-UK"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/peteS-UK/emotiva/blob/main/README.md",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/peteS-UK/emotiva/issues",
+  "requirements": [
+    "lxml",
+    "asyncio_datagram"
+  ],
+  "version": "1.9.2"
+}

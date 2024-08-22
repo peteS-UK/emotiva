@@ -45,7 +45,7 @@ class EmotivaNotifier(object):
             stream = await asyncio_datagram.bind((ip, port))
         except IOError as e:
             _LOGGER.critical("Cannot bind to local socket %d: %s", e.errno, e.strerror)
-        except:
+        except Exception:
             _LOGGER.critical(
                 "Unknown error on binding to local socket %s", sys.exc_info()[0]
             )
@@ -300,7 +300,7 @@ class Emotiva(object):
             _LOGGER.critical(
                 "Cannot connect listener socket %d: %s", e.errno, e.strerror
             )
-        except:
+        except Exception:
             _LOGGER.critical(
                 "Unknown error on listener socket connection %s", sys.exc_info()[0]
             )
@@ -312,7 +312,7 @@ class Emotiva(object):
             _LOGGER.critical(
                 "Cannot disconnect from listener socket %d: %s", e.errno, e.strerror
             )
-        except:
+        except Exception:
             _LOGGER.critical(
                 "Unknown error on listener socket disconnection %s", sys.exc_info()[0]
             )
@@ -321,7 +321,7 @@ class Emotiva(object):
 
         try:
             await self._udp_stream.send(req)
-        except:
+        except Exception:
             try:
                 _LOGGER.debug("Connection lost.  Attepting to reconnect")
                 self.udp_connect()
@@ -331,7 +331,7 @@ class Emotiva(object):
                 _LOGGER.critical(
                     "Cannot reconnect to command socket %d: %s", e.errno, e.strerror
                 )
-            except:
+            except Exception:
                 _LOGGER.critical(
                     "Unknown error on command socket reconnection %s", sys.exc_info()[0]
                 )
@@ -456,11 +456,11 @@ class Emotiva(object):
         resp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             resp_sock.bind(("", cls.DISCOVER_RESP_PORT))
-        except:
+        except Exception:
             time.sleep(1)
             try:
                 resp_sock.bind(("", cls.DISCOVER_RESP_PORT))
-            except:
+            except Exception:
                 _LOGGER.error("Cannot bind to discovery port")
                 return []
 
@@ -552,14 +552,14 @@ class Emotiva(object):
 
     @property
     def volume_level(self):
-        if self._current_state["volume"] != None:
+        if self._current_state["volume"] is not None:
             _vol = float(self._current_state["volume"].replace(" ", ""))
             return (_vol - self._volume_min) / self._volume_range
         return None
 
     @property
     def volume(self):
-        if self._current_state["volume"] != None:
+        if self._current_state["volume"] is not None:
             return float(self._current_state["volume"].replace(" ", ""))
         return None
 
@@ -633,9 +633,7 @@ class Emotiva(object):
     @property
     def modes(self):
         # we return only the modes that are active
-        return tuple(
-            dict(filter(lambda elem: elem[1][2] == True, self._modes.items())).keys()
-        )
+        return tuple(dict(filter(lambda elem: elem[1][2], self._modes.items())).keys())
 
     @property
     def mode(self):
@@ -643,7 +641,7 @@ class Emotiva(object):
 
         try:
             return self._current_state["mode"]
-        except:
+        except Exception:
             _LOGGER.error("Unknown sound mode %s", self._current_state["mode"])
             return ""
 

@@ -1,25 +1,14 @@
 from __future__ import annotations
 
 import logging
-import asyncio
-
-from collections.abc import Iterable
-from typing import Any
 
 from .const import DOMAIN
-
-from .emotiva import Emotiva
-
-import voluptuous as vol
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 
 from homeassistant import config_entries, core
 
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import (
-    config_validation as cv,
-)
+from homeassistant.core import callback
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
@@ -98,7 +87,7 @@ class EmotivaDevice(SensorEntity):
 
     @property
     def icon(self):
-        if self._device.mute == True:
+        if self._device.mute:
             return "mdi:volume-off"
         else:
             return "mdi:volume-high"

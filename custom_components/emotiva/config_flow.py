@@ -1,6 +1,6 @@
 import logging
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import voluptuous as vol
 
@@ -17,13 +17,8 @@ from .const import (
 from homeassistant import config_entries, core, exceptions
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
 from homeassistant.core import callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.entity_registry import (
-    async_entries_for_config_entry,
-    async_get,
-)
 
+import homeassistant.helpers.config_validation as cv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,8 +62,8 @@ async def validate_auth(hass: core.HomeAssistant, data: dict) -> None:
     if data["manual"] and (len(data["host"]) < 3 or len(data["name"]) < 1):
         # Manual entry requires host and name and model
         raise ValueError
-    if (data["manual"] == False and data["discover"] == False) or (
-        data["manual"] == True and data["discover"] == True
+    if (not data["manual"] and not data["discover"]) or (
+        data["manual"] and data["discover"]
     ):
         raise SelectError
 

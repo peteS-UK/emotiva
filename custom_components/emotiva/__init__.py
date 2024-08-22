@@ -16,8 +16,6 @@ from .const import (
     CONF_PROTO_VER,
     CONF_DISCOVER,
     CONF_MANUAL,
-    SERVICE_SEND_COMMAND,
-    DEFAULT_NAME,
 )
 
 _LOGGER = logging.getLogger(__name__)

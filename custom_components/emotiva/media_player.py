@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import logging
-import asyncio
 
 from .const import DOMAIN
-
-from .emotiva import Emotiva
 
 import voluptuous as vol
 
@@ -19,30 +16,23 @@ from homeassistant.components.media_player import (
 from homeassistant import config_entries, core
 
 from homeassistant.const import CONF_HOST, CONF_NAME
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import callback
 from homeassistant.helpers import (
     config_validation as cv,
-    discovery_flow,
     entity_platform,
 )
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.start import async_at_start
-
-_LOGGER = logging.getLogger(__name__)
-
 
 from .const import (
     CONF_NOTIFICATIONS,
     CONF_NOTIFY_PORT,
     CONF_CTRL_PORT,
     CONF_PROTO_VER,
-    CONF_DISCOVER,
-    CONF_MANUAL,
     SERVICE_SEND_COMMAND,
-    DEFAULT_NAME,
 )
+
+_LOGGER = logging.getLogger(__name__)
+
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -164,15 +154,13 @@ class EmotivaDevice(MediaPlayerEntity):
         # except:
         # 	pass
 
-    should_poll = False
-
     @property
     def should_poll(self):
         return False
 
     @property
     def icon(self):
-        if self._device.power == True:
+        if self._device.power:
             return "mdi:audio-video"
         else:
             return "mdi:audio-video-off"
@@ -221,9 +209,9 @@ class EmotivaDevice(MediaPlayerEntity):
 
     @property
     def state(self) -> MediaPlayerState | None:
-        if self._device.power == False:
+        if not self._device.power:
             return MediaPlayerState.OFF
-        if self._device.power == True:
+        if self._device.power:
             return MediaPlayerState.ON
 
         return None
@@ -258,10 +246,10 @@ class EmotivaDevice(MediaPlayerEntity):
         _attributes = {}
 
         for ev in self._device._events:
-            if ev.startswith("power") == False:
+            if not ev.startswith("power"):
                 _attributes[ev] = self._device._current_state[ev]
 
-        if self._device.mute == True:
+        if self._device.mute:
             _attributes["volume"] = "0"
 
         return _attributes

@@ -1,35 +1,20 @@
 from __future__ import annotations
 
 import logging
-import asyncio
 
 from collections.abc import Iterable
 from typing import Any
 
 from .const import DOMAIN
 
-from .emotiva import Emotiva
-
-import voluptuous as vol
-
 from homeassistant.components.remote import (
-    ATTR_DELAY_SECS,
-    ATTR_NUM_REPEATS,
-    DEFAULT_DELAY_SECS,
     RemoteEntity,
 )
 
 from homeassistant import config_entries, core
 
-from homeassistant.const import CONF_HOST, CONF_NAME
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import (
-    config_validation as cv,
-    discovery_flow,
-    entity_platform,
-)
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.core import callback
+
 from homeassistant.helpers.device_registry import DeviceInfo
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,14 +88,12 @@ class EmotivaDevice(RemoteEntity):
 
     @property
     def state(self):
-        if self._device.power == False:
+        if not self._device.power:
             return "off"
-        elif self._device.power == True:
+        elif self._device.power:
             return "on"
         else:
             return None
-
-    should_poll = False
 
     @property
     def should_poll(self):
@@ -143,6 +126,6 @@ class EmotivaDevice(RemoteEntity):
                 return False
             else:
                 await self._device.async_send_command(emo_Command, Value)
-        except:
+        except Exception:
             _LOGGER.error("Invalid remote command format.  Must be command,value")
             return False

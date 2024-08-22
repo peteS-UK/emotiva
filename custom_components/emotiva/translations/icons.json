@@ -1,7 +1,6 @@
 {
-  "services": 
-  {
-    "send_command" :"mdi:send"
+  "services": {
+    "send_command": "mdi:send"
   },
   "select": {
     "source": {
