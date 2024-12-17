@@ -32,17 +32,21 @@ class InvalidModeError(Error):
     pass
 
 
+class EmotivaNotifiers(object):
+    subscription: object
+    subscription_task: object
+    command: object
+    command_task: object
+
+
 class EmotivaNotifier(object):
     def __init__(self):
         self._devs = {}
 
-    async def _async_register(self, ip, port, callback):
-
-        if ip not in self._devs:
-            self._devs[ip] = callback
-
+    async def _async_start(self, local_ip, local_port):
+        _LOGGER.debug("Starting Listener on %s:%d", local_ip, local_port)
         try:
-            stream = await asyncio_datagram.bind((ip, port))
+            stream = await asyncio_datagram.bind((local_ip, local_port))
         except IOError as e:
             _LOGGER.critical("Cannot bind to local socket %d: %s", e.errno, e.strerror)
         except Exception:
@@ -54,23 +58,30 @@ class EmotivaNotifier(object):
 
         while True and stream is not None:
             data, remote_addr = await stream.recv()
+
             _LOGGER.debug(
-                "Received notification: \n%s",
+                "Received notification from %s\n%s",
+                remote_addr[0],
                 data.decode() if isinstance(data, bytes) else data,
             )
 
-            cb = self._devs[ip]
+            cb = self._devs[remote_addr[0]]
 
             cb(data)
 
             await asyncio.sleep(0.1)
 
-    async def _async_unregister(self):
+    async def _async_register(self, callback, remote_ip):
+        _LOGGER.debug("Registering %s with listener", remote_ip)
+
+        if remote_ip not in self._devs:
+            self._devs[remote_ip] = callback
+
+    async def _async_stop(self):
         self._stream.close()
 
-    def run(self):
-        _LOGGER.debug("Run Called")
-        pass
+    async def _async_unregister(self, remote_ip):
+        del self._devs[remote_ip]
 
 
 class Emotiva(object):
@@ -92,8 +103,6 @@ class Emotiva(object):
         ]
     ).union(set(["input_%d" % d for d in range(1, 9)]))
 
-    # __notifier = EmotivaNotifier()
-
     def __init__(
         self,
         ip,
@@ -107,7 +116,6 @@ class Emotiva(object):
         _setup_port=None,
         events=NOTIFY_EVENTS,
     ):
-
         self._ip = ip
         self._name = _name
         self._model = _model
@@ -123,8 +131,6 @@ class Emotiva(object):
         self._udp_stream = None
         self._update_cb = None
         self._remote_update_cb = None
-
-        self.__notifier = EmotivaNotifier()
 
         if not self._ctrl_port or not self._notify_port:
             self.__parse_transponder(transp_xml)
@@ -237,20 +243,20 @@ class Emotiva(object):
         return _local_ip
 
     def connect(self):
-
         self._ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._ctrl_sock.bind(("", self._ctrl_port))
         self._ctrl_sock.settimeout(0.5)
 
-    async def run_notifier(self):
-        _LOGGER.debug("Setting up Notify Listener")
-        await self.__notifier._async_register(
-            self._local_ip, self._notify_port, self._notify_handler
+    async def register_with_notifier(self):
+        await self._notifiers.subscription._async_register(
+            self._notify_handler, self._ip
         )
+        await self._notifiers.command._async_register(self._notify_handler, self._ip)
 
-    async def stop_notifier(self):
-        _LOGGER.debug("Stopping Notify Listener")
-        await self.__notifier._async_unregister()
+    async def unregister_from_notifier(self):
+        _LOGGER.debug("Removing %s from Listeners", self._ip)
+        await self._notifiers.subscription._async_unregister(self._ip)
+        await self._notifiers.command._async_unregister(self._ip)
 
     async def async_subscribe_events(self):
         _LOGGER.debug("Subscribing to %s", self._events)
@@ -293,16 +299,20 @@ class Emotiva(object):
 
     async def udp_connect(self):
         try:
+            #            self._udp_stream = await asyncio_datagram.connect(
+            #                (self._ip, self._ctrl_port), (self._local_ip, self._ctrl_port)
+            #            )
             self._udp_stream = await asyncio_datagram.connect(
-                (self._ip, self._ctrl_port), (self._local_ip, self._ctrl_port)
+                (self._ip, self._ctrl_port)
             )
         except IOError as e:
             _LOGGER.critical(
-                "Cannot connect listener socket %d: %s", e.errno, e.strerror
+                "Cannot connect control listener socket %d: %s", e.errno, e.strerror
             )
         except Exception:
             _LOGGER.critical(
-                "Unknown error on listener socket connection %s", sys.exc_info()[0]
+                "Unknown error on control listener socket connection %s",
+                sys.exc_info()[0],
             )
 
     async def udp_disconnect(self):
@@ -310,15 +320,17 @@ class Emotiva(object):
             self._udp_stream.close()
         except IOError as e:
             _LOGGER.critical(
-                "Cannot disconnect from listener socket %d: %s", e.errno, e.strerror
+                "Cannot disconnect from control listener socket %d: %s",
+                e.errno,
+                e.strerror,
             )
         except Exception:
             _LOGGER.critical(
-                "Unknown error on listener socket disconnection %s", sys.exc_info()[0]
+                "Unknown error on control listener socket disconnection %s",
+                sys.exc_info()[0],
             )
 
     async def _udp_client(self, req, ack):
-
         try:
             await self._udp_stream.send(req)
         except Exception:
@@ -337,33 +349,33 @@ class Emotiva(object):
                 )
 
         # await _stream.send(command, (self._ip, self._ctrl_port))
-        if ack:
-            resp, remote_addr = await self._udp_stream.recv()
-            _LOGGER.debug(
-                "_udp_client received: \n%s",
-                resp.decode() if isinstance(resp, bytes) else resp,
-            )
-        else:
-            resp = None
+        # if ack:
+        #    resp, remote_addr = await self._udp_stream.recv()
+        #    _LOGGER.debug(
+        #        "_udp_client received: \n%s",
+        #        resp.decode() if isinstance(resp, bytes) else resp,
+        #    )
+        # else:
+        #    resp = None
 
         # _stream.close()
 
+        resp = None
         self._resp = resp
 
     async def _async_send_request(self, req, ack=False, process_response=True):
-
         await self._udp_client(req, ack)
 
         # _LOGGER.debug("_async_send_request received %s", self._resp)
 
-        if ack and process_response:
-            resp = self._parse_response(self._resp)
-            self._handle_status(resp)
+        # if ack and process_response:
+        #    resp = self._parse_response(self._resp)
+        #    self._handle_status(resp)
 
     async def _async_send_emotivacontrol(self, command, value):
         msg = self.format_request(
             "emotivaControl",
-            [(command, {"value": str(value), "ack": "yes"})],
+            [(command, {"value": str(value), "ack": "no"})],
             {"protocol": "3.0"} if self._proto_ver == 3 else {},
         )
         await self._async_send_request(msg, ack=True, process_response=False)
@@ -489,9 +501,9 @@ class Emotiva(object):
                 devices.append((ip, resp))
             except socket.timeout:
                 break
-        # Only return the first discovered device
         if len(devices) > 0:
-            return devices[0]
+            # return devices[0]
+            return devices
         else:
             return None
 
@@ -562,6 +574,9 @@ class Emotiva(object):
         if self._current_state["volume"] is not None:
             return float(self._current_state["volume"].replace(" ", ""))
         return None
+
+    def set_notifiers(self, notifiers):
+        self._notifiers: EmotivaNotifiers = notifiers
 
     # @volume.setter
     # def volume(self, value):
@@ -637,8 +652,6 @@ class Emotiva(object):
 
     @property
     def mode(self):
-        _LOGGER.debug("Current sound mode %s", self._current_state["mode"])
-
         try:
             return self._current_state["mode"]
         except Exception:
@@ -646,7 +659,6 @@ class Emotiva(object):
             return ""
 
     async def async_set_mode(self, val):
-
         if val not in self._modes:
             raise InvalidModeError('Mode "%s" does not exist' % val)
         elif self._modes[val][0] is None:

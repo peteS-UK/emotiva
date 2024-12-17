@@ -6,7 +6,9 @@ from homeassistant import config_entries, core
 from homeassistant.const import Platform
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
 
-from .emotiva import Emotiva
+from .emotiva import Emotiva, EmotivaNotifier
+
+from homeassistant.components.network import async_get_source_ip
 
 from .const import (
     DOMAIN,
@@ -16,7 +18,16 @@ from .const import (
     CONF_PROTO_VER,
     CONF_DISCOVER,
     CONF_MANUAL,
+    CONF_TYPE,
 )
+
+
+class EmotivaNotifiers(object):
+    subscription: object
+    subscription_task: object
+    command: object
+    command_task: object
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,24 +42,41 @@ async def async_setup_entry(
     hass_data = dict(entry.data)
 
     emotiva = []
+    _control_port = None
+    _notify_port = None
 
-    if hass_data[CONF_DISCOVER]:
-        receiver = await hass.async_add_executor_job(Emotiva.discover, 3)
+    if hass_data.get(CONF_TYPE, None) == "Discover" or hass_data.get(
+        CONF_DISCOVER, None
+    ):
+        receivers = await hass.async_add_executor_job(Emotiva.discover, 3)
 
-        if receiver:
+        for receiver in receivers:
             # Server was discovered
             _ip, _xml = receiver
 
-            emotiva.append(Emotiva(_ip, _xml))
-            _LOGGER.debug("Adding %s from discovery", _ip)
+            if not _control_port or not _notify_port:
+                ctrl = _xml.find("control")
+                elem = ctrl.find("controlPort")
+                if elem is not None:
+                    _control_port = int(elem.text)
+                elem = ctrl.find("notifyPort")
+                if elem is not None:
+                    _notify_port = int(elem.text)
 
-    elif hass_data[CONF_MANUAL]:
+            emotiva.append(Emotiva(_ip, _xml))
+            _LOGGER.debug("Adding %s from Discovery", _ip)
+
+    elif hass_data.get(CONF_TYPE, None) == "Manual" or hass_data.get(CONF_MANUAL, None):
         _LOGGER.debug(
-            "Adding %s Name: %s Model: %s from config",
+            "Adding %s Name: %s Model: %s from Manual Config",
             hass_data[CONF_HOST],
             hass_data[CONF_NAME],
             hass_data[CONF_MODEL],
         )
+
+        if not _control_port or not _notify_port:
+            _control_port = hass_data[CONF_CTRL_PORT]
+            _notify_port = hass_data[CONF_NOTIFY_PORT]
 
         emotiva.append(
             Emotiva(
@@ -66,6 +94,10 @@ async def async_setup_entry(
         _LOGGER.critical("No processor discovered, and no manual processor info")
         return False
 
+    if not _control_port or not _notify_port:
+        _LOGGER.critical("Cannot discover control and/or notify ports")
+        return False
+
     # Get additional notify
 
     if CONF_NOTIFICATIONS in entry.options:
@@ -79,6 +111,32 @@ async def async_setup_entry(
     hass_data["unsub_options_update_listener"] = unsub_options_update_listener
 
     hass.data[DOMAIN][entry.entry_id] = hass_data
+
+    _LOGGER.debug(
+        "Adding new Config Entry.  %d total configurations",
+        len(hass.config_entries.async_entries(DOMAIN)),
+    )
+
+    # if len(hass.config_entries.async_entries(DOMAIN)) == 1:
+    if "notifiers" not in hass.data[DOMAIN]:
+        # There are no current configs, so we create the listener
+        notifiers = EmotivaNotifiers()
+        notifiers.subscription = EmotivaNotifier()
+        notifiers.command = EmotivaNotifier()
+
+        _local_ip = await async_get_source_ip(hass)
+
+        notifiers.subscription_task = hass.async_create_background_task(
+            notifiers.subscription._async_start(_local_ip, _notify_port),
+            name="emotiva subscription notifier task",
+        )
+
+        notifiers.command_task = hass.async_create_background_task(
+            notifiers.command._async_start(_local_ip, _control_port),
+            name="emotiva command notifier task",
+        )
+
+        hass.data[DOMAIN]["notifiers"] = notifiers
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -121,5 +179,18 @@ async def async_unload_entry(
         entry_data = hass.data[DOMAIN].pop(entry.entry_id)
         # Remove options_update_listener.
         entry_data["unsub_options_update_listener"]()
+
+        _LOGGER.debug(
+            "Unloading Entry.  %d configurations remaining",
+            len(hass.config_entries.async_loaded_entries(DOMAIN)) - 1,
+        )
+
+        if len(hass.config_entries.async_loaded_entries(DOMAIN)) == 1:
+            _LOGGER.debug("Unloading Listeners")
+            _notifiers = hass.data[DOMAIN]["notifiers"]
+            await _notifiers.subscription._async_stop()
+            await _notifiers.command._async_stop()
+            _notifiers.command_task.cancel()
+            del hass.data[DOMAIN]["notifiers"]
 
     return unload_ok

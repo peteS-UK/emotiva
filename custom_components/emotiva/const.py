@@ -4,6 +4,7 @@ CONF_NOTIFICATIONS = "notifications"
 CONF_PROTO_VER = "protocol_version"
 CONF_DISCOVER = "discover"
 CONF_MANUAL = "manual"
+CONF_TYPE = "type"
 
 DOMAIN = "emotiva"
 DEFAULT_NAME = "Emotiva Processor"

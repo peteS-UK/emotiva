@@ -1,40 +1,43 @@
 {
   "title": "Emotiva Processor",
-    "config": {
-      "error": {
-        "data": "For manual config, you must enter the IP and Name of the processor and the model must be one of XMC-1, XMC-2, RMC-1 or RMC-1l",
-        "select": "You must either discover or enter details manually, but not both"
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "type": "Discover new processors or add manually",
+          "discover": "Search for Emotiva Processors during setup",
+          "manual": "Enter details manually below"
+        },
+        "description": "You can ask the setup to discover processors, or enter details manually for a processor",
+        "title": "Emotiva Processor"
       },
-      "step": {
-        "user": {
-          "data": {
-            "discover": "Search for Emotiva Processors during setup",
-            "manual": "Enter details manually below",
-            "host": "IP Address of the Emotiva Processor",
-            "name": "Name of the Emotiva Processor",
-            "model": "Model of Processor (XMC-1, XMC-2, RMC-1, RMC-1l)",
-            "control_port": "Control Port : Default 7002",
-            "notify_port":"Notification Port: Default 7003",
-            "protocol_version":"Protocol Version: Default 3.0"
-          },
-          "description": "Enter the details for your processor.  You can ask the setup to discover processors, and/or enter details manually for a processor",
-          "title": "Emotiva Processor"
-        }
+      "manual": {
+        "data": {
+          "host": "IP Address of the Emotiva Processor",
+          "name": "Name of the Emotiva Processor",
+          "model": "Model of Processor",
+          "control_port": "Control Port : Default 7002",
+          "notify_port": "Notification Port: Default 7003",
+          "protocol_version": "Protocol Version: Default 3.0"
+        },
+        "description": "Enter the details for your processor.",
+        "title": "Emotiva Processor"
       }
+    }
+  },
+  "options": {
+    "error": {
+      "invalid_path": "The path provided is not valid. Should be in the format `user/repo-name` and should be a valid github repository."
     },
-    "options": {
-      "error": {
-        "invalid_path": "The path provided is not valid. Should be in the format `user/repo-name` and should be a valid github repository."
-      },
-      "step": {
-        "init": {
-          "title": "Additional Notifications",
-          "data": {
-            "notifications": "Notifications to track",
-            "delete_existing": "Tick to remove existing additional notifications"
-          },
-          "description": "Add additional notifications to track as entity attributes"
-        }
+    "step": {
+      "init": {
+        "title": "Additional Notifications",
+        "data": {
+          "notifications": "Notifications to track",
+          "delete_existing": "Tick to remove existing additional notifications"
+        },
+        "description": "Add additional notifications to track as entity attributes"
       }
     }
   }
+}

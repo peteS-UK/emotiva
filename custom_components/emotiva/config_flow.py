@@ -1,6 +1,6 @@
 import logging
 
-from typing import Any, Dict
+from typing import Any
 
 import voluptuous as vol
 
@@ -8,94 +8,90 @@ from .const import (
     DOMAIN,
     CONF_CTRL_PORT,
     CONF_NOTIFICATIONS,
-    CONF_DISCOVER,
-    CONF_MANUAL,
     CONF_NOTIFY_PORT,
     CONF_PROTO_VER,
+    CONF_TYPE,
 )
 
-from homeassistant import config_entries, core, exceptions
+from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
 from homeassistant.core import callback
 
 import homeassistant.helpers.config_validation as cv
 
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 EMO_CONFIG_SCHEMA = vol.Schema(
     {
-        vol.Optional(CONF_DISCOVER, default=True): cv.boolean,
-        vol.Optional(CONF_MANUAL, default=False): cv.boolean,
-        vol.Optional(CONF_HOST): cv.string,
-        vol.Optional(CONF_NAME): cv.string,
-        vol.Optional(CONF_MODEL): cv.string,
-        vol.Optional(CONF_CTRL_PORT, default=7002): vol.Coerce(int),
-        vol.Optional(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int),
-        vol.Optional(CONF_PROTO_VER, default=3.0): vol.Coerce(float),
+        vol.Required(CONF_TYPE, default=True): SelectSelector(
+            SelectSelectorConfig(
+                mode=SelectSelectorMode.LIST,
+                options=[
+                    "Discover",
+                    "Manual",
+                ],
+            )
+        ),
+    }
+)
+
+EMO_MANUAL_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HOST): cv.string,
+        vol.Required(CONF_NAME): cv.string,
+        vol.Required(CONF_MODEL): SelectSelector(
+            SelectSelectorConfig(
+                mode=SelectSelectorMode.DROPDOWN,
+                options=["XMC-1", "XMC-2", "RMC-1", "RMC-1l"],
+            )
+        ),
+        vol.Required(CONF_CTRL_PORT, default=7002): vol.Coerce(int),
+        vol.Required(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int),
+        vol.Required(CONF_PROTO_VER, default=3.0): vol.Coerce(float),
     }
 )
 
 EMO_OPTIONS_SCHEMA = vol.Schema({vol.Optional(CONF_NOTIFICATIONS): cv.string})
 
 
-class SelectError(exceptions.HomeAssistantError):
-    """Error"""
-
-    pass
-
-
-async def validate_auth(hass: core.HomeAssistant, data: dict) -> None:
-
-    _models = ["XMC-1", "XMC-2", "RMC-1", "RMC-1l"]
-
-    if "host" not in data.keys():
-        data["host"] = ""
-    if "name" not in data.keys():
-        data["name"] = ""
-    if "model" not in data.keys():
-        data["model"] = ""
-    if "manual" not in data.keys():
-        data["manual"] = False
-    if "discover" not in data.keys():
-        data["discover"] = False
-
-    if data["manual"] and (len(data["host"]) < 3 or len(data["name"]) < 1):
-        # Manual entry requires host and name and model
-        raise ValueError
-    if (not data["manual"] and not data["discover"]) or (
-        data["manual"] and data["discover"]
-    ):
-        raise SelectError
-
-    if data["manual"] and (len(data["model"]) < 1 or data["model"] not in _models):
-        raise ValueError
-
-
 class EmotivaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
     async def async_step_user(self, user_input=None):
         """Invoked when a user initiates a flow via the user interface."""
-        errors: Dict[str, str] = {}
         if user_input is not None:
-            try:
-                await validate_auth(self.hass, user_input)
-            except ValueError:
-                errors["base"] = "data"
-            except SelectError:
-                errors["base"] = "select"
-
-            if not errors:
+            if user_input[CONF_TYPE] == "Discover":
                 # Input is valid, set data.
                 self.data = user_input
                 return self.async_create_entry(
                     title="Emotiva Processor", data=self.data
                 )
+            else:
+                return self.async_show_form(
+                    step_id="manual", data_schema=EMO_MANUAL_SCHEMA
+                )
+
+        # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
+        return self.async_show_form(step_id="user", data_schema=EMO_CONFIG_SCHEMA)
+
+    async def async_step_manual(self, user_input=None):
+        """Invoked when a user initiates a flow via the user interface."""
+        if user_input is not None:
+            # Input is valid, set data.
+            self.data = user_input
+            self.data[CONF_TYPE] = "Manual"
+            return self.async_create_entry(title="Emotiva Processor", data=self.data)
 
         # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
         return self.async_show_form(
-            step_id="user", data_schema=EMO_CONFIG_SCHEMA, errors=errors
+            step_id="manual",
+            data_schema=EMO_MANUAL_SCHEMA,
         )
 
     @staticmethod
