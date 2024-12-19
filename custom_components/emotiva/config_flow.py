@@ -53,7 +53,15 @@ EMO_MANUAL_SCHEMA = vol.Schema(
         ),
         vol.Required(CONF_CTRL_PORT, default=7002): vol.Coerce(int),
         vol.Required(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int),
-        vol.Required(CONF_PROTO_VER, default=3.0): vol.Coerce(float),
+        vol.Required(CONF_PROTO_VER, default="3.0"): vol.All(
+            SelectSelector(
+                SelectSelectorConfig(
+                    mode=SelectSelectorMode.DROPDOWN,
+                    options=["3.0", "2.0"],
+                )
+            ),
+            vol.Coerce(float),
+        ),
     }
 )
 

@@ -1,17 +1,11 @@
-import logging
-
-import socket
-
-from lxml import etree
-
 import asyncio
-
-import asyncio_datagram
-
+import logging
+import socket
+import sys
 import time
 
-import sys
-
+import asyncio_datagram
+from lxml import etree
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -177,6 +171,21 @@ class Emotiva(object):
                 }
             case "RMC1":
                 _LOGGER.debug("Sound Modes for RMC-1")
+                self._modes = {
+                    "Stereo": ["stereo", "mode_stereo", False],
+                    "Direct": ["direct", "mode_direct", False],
+                    "Dolby": ["dolby", "mode_dolby", False],
+                    "DTS": ["dts", "mode_dts", False],
+                    "All Stereo": ["all_stereo", "mode_all_stereo", False],
+                    "Auto": ["auto", "mode_auto", False],
+                    "Reference Stereo": ["reference_stereo", "mode_ref_stereo", False],
+                    "Surround": ["surround_mode", "mode_surround", False],
+                    "Dolby Surround": ["dolby", "mode_dolby", False],
+                    "Dolby ATMOS": ["dolby", "mode_dolby", False],
+                    "dts Neural:X": ["dts", "mode_dts", False],
+                }
+            case "RMC1l":
+                _LOGGER.debug("Sound Modes for RMC-1l")
                 self._modes = {
                     "Stereo": ["stereo", "mode_stereo", False],
                     "Direct": ["direct", "mode_direct", False],
@@ -626,15 +635,6 @@ class Emotiva(object):
     @property
     def source(self):
         return self._current_state["source"]
-
-    # @source.setter
-    # def source(self, val):
-    # 	if val not in self._sources:
-    # 		raise InvalidSourceError('Source "%s" is not a valid input' % val)
-    # 	elif self._sources[val] is None:
-    # 		raise InvalidSourceError('Source "%s" has bad value (%s)' % (
-    # 				val, self._sources[val]))
-    # 	self._send_emotivacontrol('source_%d' % self._sources[val],0)
 
     async def async_set_source(self, val):
         if val not in self._sources:

@@ -190,6 +190,7 @@ async def async_unload_entry(
             _notifiers = hass.data[DOMAIN]["notifiers"]
             await _notifiers.subscription._async_stop()
             await _notifiers.command._async_stop()
+            _notifiers.subscription_task.cancel()
             _notifiers.command_task.cancel()
             del hass.data[DOMAIN]["notifiers"]
 
