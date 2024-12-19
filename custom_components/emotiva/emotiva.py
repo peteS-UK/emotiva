@@ -237,7 +237,41 @@ class Emotiva(object):
                 "mode_ref_stereo": "Reference Stereo",
             }
         )
-        self._sources = {}
+        self._sources = {
+            "source_1": "Input 1",
+            "source_2": "Input 2",
+            "source_3": "Input 3",
+            "source_4": "Input 4",
+            "source_5": "Input 5",
+            "source_6": "Input 6",
+            "source_7": "Input 7",
+            "source_8": "Input 8",
+            "analog1": "Analog 1",
+            "analog2": "Analog 2",
+            "analog3": "Analog 3",
+            "analog4": "Record In",
+            "analog5": "Analog 5",
+            "analog71": "Analog 7.1",
+            "ARC": "HDMI ARC",
+            "coax1": "Coax 1",
+            "coax2": "Coax 2",
+            "coax3": "Coax 3",
+            "coax4": "AES/EBU",
+            "hdmi1": "HDMI 1",
+            "hdmi2": "HDMI 2",
+            "hdmi3": "HDMI 3",
+            "hdmi4": "HDMI 4",
+            "hdmi5": "HDMI 5",
+            "hdmi6": "HDMI 6",
+            "hdmi7": "HDMI 7",
+            "hdmi8": "HDMI 8",
+            "optical1": "Optical 1",
+            "optical2": "Optical 2",
+            "optical3": "Optical 3",
+            "optical4": "Optical 4",
+            "source_tuner": "Tuner",
+            "usb_stream": "USB Stream",
+        }
 
         self._muted = False
 
@@ -449,7 +483,7 @@ class Emotiva(object):
                 self._current_state[elem.tag] = val
             if elem.tag.startswith("input_"):
                 num = elem.tag[6:]
-                self._sources[val] = int(num)
+                self._sources["source_" + num] = val
 
         if self._update_cb:
             self._update_cb()
@@ -630,20 +664,23 @@ class Emotiva(object):
 
     @property
     def sources(self):
-        return tuple(self._sources.keys())
+        return tuple(self._sources.values())
 
     @property
     def source(self):
         return self._current_state["source"]
 
     async def async_set_source(self, val):
-        if val not in self._sources:
+        _source_key = list(self._sources.keys())[
+            list(self._sources.values()).index(val)
+        ]
+
+        if val not in self._sources.values():
             raise InvalidSourceError('Source "%s" is not a valid input' % val)
-        elif self._sources[val] is None:
-            raise InvalidSourceError(
-                'Source "%s" has bad value (%s)' % (val, self._sources[val])
-            )
-        await self._async_send_emotivacontrol("source_%d" % self._sources[val], "0")
+
+        _LOGGER.critical("key %s", _source_key)
+
+        await self._async_send_emotivacontrol(_source_key, "0")
 
     @property
     def modes(self):
