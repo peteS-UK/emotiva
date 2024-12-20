@@ -678,8 +678,6 @@ class Emotiva(object):
         if val not in self._sources.values():
             raise InvalidSourceError('Source "%s" is not a valid input' % val)
 
-        _LOGGER.critical("key %s", _source_key)
-
         await self._async_send_emotivacontrol(_source_key, "0")
 
     @property
