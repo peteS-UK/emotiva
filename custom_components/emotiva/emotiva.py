@@ -91,9 +91,11 @@ class Emotiva(object):
             "mode",
             "volume",
             "audio_input",
+            "audio_bits",
             "audio_bitstream",
             "video_input",
             "video_format",
+            "video_space",
         ]
     ).union(set(["input_%d" % d for d in range(1, 9)]))
 
