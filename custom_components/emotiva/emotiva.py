@@ -101,6 +101,7 @@ class Emotiva(object):
 
     def __init__(
         self,
+        hass,
         ip,
         transp_xml="",
         _ctrl_port=None,
@@ -112,6 +113,7 @@ class Emotiva(object):
         _setup_port=None,
         events=NOTIFY_EVENTS,
     ):
+        self._hass = hass
         self._ip = ip
         self._name = _name
         self._model = _model
@@ -127,6 +129,46 @@ class Emotiva(object):
         self._udp_stream = None
         self._update_cb = None
         self._remote_update_cb = None
+        self._sensor_update_cb = {}
+        self._all_events = set(
+            [
+                "power",
+                "source",
+                "dim",
+                "mode",
+                "speaker_preset",
+                "center",
+                "subwoofer",
+                "surround",
+                "back",
+                "volume",
+                "loudness",
+                "treble",
+                "bass",
+                "zone2_power",
+                "zone2_volume",
+                "zone2_input",
+                "tuner_band",
+                "tuner_channel",
+                "tuner_signal",
+                "tuner_program",
+                "tuner_RDS",
+                "audio_input",
+                "audio_bitstream",
+                "audio_bits",
+                "video_input",
+                "video_format",
+                "video_space",
+                "input_1",
+                "input_2",
+                "input_3",
+                "input_4",
+                "input_5",
+                "input_6",
+                "input_7",
+                "input_8",
+            ]
+        )
 
         if not self._ctrl_port or not self._notify_port:
             self.__parse_transponder(transp_xml)
@@ -308,12 +350,24 @@ class Emotiva(object):
         await self._subscribe_events(self._events)
 
     async def async_unsubscribe_events(self):
-        await self._unsubscribe_events(self._events)
+        _LOGGER.debug("Unsubscribing from %s", self._events)
+        await self._unsubscribe_events(self._all_events)
+        await asyncio.sleep(0.5)
 
     def _notify_handler(self, data):
-        _LOGGER.debug("Notify Handler called")
-        resp = self._parse_response(data)
-        self._handle_status(resp)
+        _LOGGER.debug("Notify Handler called.")
+        _decoded_data = data.decode("utf-8")
+        if "emotivaUnsubscribe" not in _decoded_data:
+            resp = self._parse_response(data)
+            self._handle_status(resp)
+
+        async def _update_sensors():
+            # await asyncio.sleep(1.0)
+            await self._update_sensor_values()
+
+        if "emotivaUpdate" not in _decoded_data and "audio_input" not in _decoded_data:
+            _LOGGER.debug("Sensor Update Scheduled")
+            self._hass.async_create_task(_update_sensors())
 
     async def _subscribe_events(self, events):
         msg = self.format_request(
@@ -331,16 +385,29 @@ class Emotiva(object):
         )
         await self._async_send_request(msg, ack=True)
 
-    def disconnect(self):
-        self._ctrl_sock.close()
-
-    async def async_update_status(self, events):
+    async def _update_events(self, events):
         msg = self.format_request(
             "emotivaUpdate",
             [(ev, {}) for ev in events],
             {"protocol": "3.0"} if self._proto_ver == 3 else {},
         )
         await self._async_send_request(msg, ack=True)
+
+    async def _update_sensor_values(self):
+        events = [
+            "audio_input",
+            "audio_bitstream",
+            "video_input",
+            "video_format",
+            "video_space",
+        ]
+        await self._update_events(events)
+
+    def disconnect(self):
+        self._ctrl_sock.close()
+
+    async def async_update_status(self, events):
+        await self._update_events(events)
 
     async def udp_connect(self):
         try:
@@ -494,7 +561,8 @@ class Emotiva(object):
         if self._select_update_cb:
             self._select_update_cb()
         if self._sensor_update_cb:
-            self._sensor_update_cb()
+            for cb in self._sensor_update_cb.values():
+                cb()
 
     def set_remote_update_cb(self, cb):
         self._remote_update_cb = cb
@@ -502,8 +570,11 @@ class Emotiva(object):
     def set_select_update_cb(self, cb):
         self._select_update_cb = cb
 
-    def set_sensor_update_cb(self, cb):
-        self._sensor_update_cb = cb
+    def set_sensor_update_cb(self, sensor_name, cb):
+        self._sensor_update_cb[sensor_name] = cb
+
+    def remove_sensor_update_cb(self, sensor_name):
+        del self._sensor_update_cb[sensor_name]
 
     def set_update_cb(self, cb):
         self._update_cb = cb
