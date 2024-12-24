@@ -14,13 +14,63 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 _LOGGER = logging.getLogger(__name__)
 
+SENSORS = [
+    {
+        "name": "volume",
+        "display_name": "Volume",
+        "icon": "mdi:volume-off",
+        "class": SensorDeviceClass.SOUND_PRESSURE,
+        "uom": "dB",
+        "state": "volume",
+    },
+    {
+        "name": "audio_input",
+        "display_name": "Audio Input",
+        "icon": "mdi:volume-source",
+        "class": None,
+        "uom": None,
+        "state": "audio_input",
+    },
+    {
+        "name": "audio_bitstream",
+        "display_name": "Audio Bitstream",
+        "icon": "mdi:volume-equal",
+        "class": None,
+        "uom": None,
+        "state": "audio_bitstream",
+    },
+    {
+        "name": "video_input",
+        "display_name": "Video Input",
+        "icon": "mdi:video-switch-outline",
+        "class": None,
+        "uom": None,
+        "state": "video_input",
+    },
+    {
+        "name": "video_format",
+        "display_name": "Video Format",
+        "icon": "mdi:video-image",
+        "class": None,
+        "uom": None,
+        "state": "video_format",
+    },
+    {
+        "name": "video_space",
+        "display_name": "Video Space",
+        "icon": "mdi:video-outline",
+        "class": None,
+        "uom": None,
+        "state": "video_space",
+    },
+]
+
 
 async def async_setup_entry(
     hass: core.HomeAssistant,
     config_entry: config_entries.ConfigEntry,
     async_add_entities,
 ) -> None:
-
     config = hass.data[DOMAIN][config_entry.entry_id]
 
     if config_entry.options:
@@ -29,27 +79,35 @@ async def async_setup_entry(
     emotiva_list = config["emotiva"]
 
     for emotiva in emotiva_list:
-        async_add_entities([EmotivaDevice(emotiva, hass)])
+        for sensor in SENSORS:
+            async_add_entities([EmotivaDevice(emotiva, hass, sensor)])
 
 
 class EmotivaDevice(SensorEntity):
     # Representation of a Emotiva Processor
 
-    def __init__(self, device, hass):
-
+    def __init__(self, device, hass, sensor):
         self._device = device
         self._hass = hass
-        self._entity_id = "sensor.emotivaprocessor_volume"
-        self._unique_id = "emotiva_" + self._device.name.replace(" ", "_").replace(
+        self._entity_id = "sensor.emotivaprocessor_" + sensor["name"]
+        self._device_id = "emotiva_" + self._device.name.replace(" ", "_").replace(
             "-", "_"
         ).replace(":", "_")
+        if sensor["name"] == "volume":
+            # Keep the original name without sensor name for volume to prevent breaking change
+            self._unique_id = self._device_id
+        else:
+            self._unique_id = self._device_id + sensor["name"]
+        self._sensor = sensor
 
     async def async_added_to_hass(self):
         """Handle being added to hass."""
-        self._device.set_sensor_update_cb(self.async_update_callback)
+        self._device.set_sensor_update_cb(
+            self._sensor["name"], self.async_update_callback
+        )
 
     async def async_will_remove_from_hass(self) -> None:
-        self._device.set_sensor_update_cb(None)
+        self._device.remove_sensor_update_cb(self._sensor["name"])
 
     @callback
     def async_update_callback(self, reason=False):
@@ -58,7 +116,7 @@ class EmotivaDevice(SensorEntity):
 
     @property
     def name(self):
-        return self._device.name + " Volume"
+        return self._device.name + " " + self._sensor["display_name"]
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -66,7 +124,7 @@ class EmotivaDevice(SensorEntity):
         return DeviceInfo(
             identifiers={
                 # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._unique_id)
+                (DOMAIN, self._device_id)
             },
             name=self._device.name,
             manufacturer="Emotiva",
@@ -87,10 +145,13 @@ class EmotivaDevice(SensorEntity):
 
     @property
     def icon(self):
-        if self._device.mute:
-            return "mdi:volume-off"
+        if self._sensor["name"] == "volume":
+            if self._device.mute:
+                return "mdi:volume-off"
+            else:
+                return "mdi:volume-high"
         else:
-            return "mdi:volume-high"
+            return self._sensor["icon"]
 
     @entity_id.setter
     def entity_id(self, entity_id):
@@ -98,12 +159,12 @@ class EmotivaDevice(SensorEntity):
 
     @property
     def device_class(self):
-        return SensorDeviceClass.SOUND_PRESSURE
+        return self._sensor["class"]
 
     @property
     def native_unit_of_measurement(self):
-        return "dB"
+        return self._sensor["uom"]
 
     @property
     def native_value(self):
-        return self._device.volume
+        return eval("self._device._current_state['" + self._sensor["state"] + "']")

@@ -21,6 +21,7 @@ from homeassistant.helpers import (
     config_validation as cv,
     entity_platform,
 )
+
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import (
@@ -30,6 +31,9 @@ from .const import (
     CONF_PROTO_VER,
     SERVICE_SEND_COMMAND,
 )
+
+
+import asyncio
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,13 +65,14 @@ async def async_setup_entry(
     config_entry: config_entries.ConfigEntry,
     async_add_entities,
 ) -> None:
-
     config = hass.data[DOMAIN][config_entry.entry_id]
 
     emotiva_list = config["emotiva"]
 
     for emotiva in emotiva_list:
-        async_add_entities([EmotivaDevice(emotiva, hass)])
+        async_add_entities(
+            [EmotivaDevice(emotiva, hass, hass.data[DOMAIN]["notifiers"])]
+        )
 
     # Register entity services
     platform = entity_platform.async_get_current_platform()
@@ -84,8 +89,7 @@ async def async_setup_entry(
 class EmotivaDevice(MediaPlayerEntity):
     # Representation of a Emotiva Processor
 
-    def __init__(self, device, hass):
-
+    def __init__(self, device, hass, notifiers):
         self._device = device
         self._hass = hass
         self._entity_id = "media_player.emotivaprocessor"
@@ -93,7 +97,7 @@ class EmotivaDevice(MediaPlayerEntity):
             "-", "_"
         ).replace(":", "_")
         self._device_class = "receiver"
-        self._notifier_task = None
+        # self._notifier_task = None
         self._record_atrributes = {
             "audio_input",
             "mode",
@@ -103,31 +107,22 @@ class EmotivaDevice(MediaPlayerEntity):
             "video_input",
             "audio_bitstream",
         }
-
-    """async def _async_startup(self, loop):
-
-        self._notifier_task = self._hass.async_create_background_task(
-            self._device.run_notifier(), name="emotiva notifier task"
-        )
-
-        await self._device.udp_connect()
-        await self._device.async_subscribe_events()"""
+        self._device.set_notifiers(notifiers)
 
     async def async_added_to_hass(self):
         """Subscribe to device events."""
         self._device.set_update_cb(self.async_update_callback)
 
-        # async_at_start(self._hass, self._async_startup)
-
-        self._notifier_task = self._hass.async_create_background_task(
-            self._device.run_notifier(), name="emotiva notifier task"
-        )
-
+        await self._device.register_with_notifier()
         await self._device.udp_connect()
         await self._device.async_subscribe_events()
 
-        _LOGGER.debug("mode in async_added %s", self._device.mode)
-        await self._device.async_set_mode(self._device.mode)
+        # Wait for initial subscription info to populate and push mode to update HA
+        await asyncio.sleep(1.0)
+        if self._device.mode:
+            await self._device.async_set_mode(self._device.mode)
+        else:
+            await self._device.async_set_mode("Stereo")
 
     @callback
     def async_update_callback(self, reason=False):
@@ -136,23 +131,13 @@ class EmotivaDevice(MediaPlayerEntity):
         self.async_schedule_update_ha_state()
 
     async def async_will_remove_from_hass(self) -> None:
-
         await self._device.async_unsubscribe_events()
 
         self._device.set_update_cb(None)
 
         await self._device.udp_disconnect()
 
-        await self._device.stop_notifier()
-
-        self._notifier_task.cancel()
-
-        # try:
-        # 	self._device._stream.close()
-        # 	await self._device.stream.wait_closed()
-        # 	self._notifier_task.cancel()
-        # except:
-        # 	pass
+        await self._device.unregister_from_notifier()
 
     @property
     def should_poll(self):
@@ -242,7 +227,6 @@ class EmotivaDevice(MediaPlayerEntity):
 
     @property
     def extra_state_attributes(self):
-
         _attributes = {}
 
         for ev in self._device._events:
