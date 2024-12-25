@@ -39,9 +39,7 @@ When you select Submit, the configuration will discover the processor(s) and set
 ## Device & Entities
 A device will be created with the same name as your processor - e.g. XMC-1.
 
-
-![image](https://github.com/peteS-UK/emotiva/assets/64092177/1bc02025-2d97-4e16-a2e2-bfbd826bc02b)
-
+![image](https://github.com/user-attachments/assets/0cd9483d-0f5b-40b1-ab20-782e745aa398)
 
 ### Media Player entity
 A media player entity will be created with a default entity_id of media_player.emotivaprocessor.  
@@ -52,7 +50,7 @@ A media player entity will be created with a default entity_id of media_player.e
 
 You can control power state, volume, muting, source and sound mode from the media player.  You can also use this entity from any card for media player.
 
-### Remote Entity & Service
+### Remote Entity & Action
 The remote entity allows you to control power, but is primarily included so that you can send commands directly to the Emotiva processor using the remote.send_command service.
 
 
