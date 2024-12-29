@@ -1,4 +1,5 @@
 {
     "name": "Emotiva Processor",
-    "render_readme": true
+    "render_readme": true,
+    "homeassistant": "2024.12.0"
 }
