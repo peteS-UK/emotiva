@@ -1,21 +1,17 @@
 from __future__ import annotations
 
 import logging
-
 from collections.abc import Iterable
 from typing import Any
 
-from .const import DOMAIN
-
+from homeassistant import config_entries, core
 from homeassistant.components.remote import (
     RemoteEntity,
 )
-
-from homeassistant import config_entries, core
-
 from homeassistant.core import callback
-
 from homeassistant.helpers.device_registry import DeviceInfo
+
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +21,6 @@ async def async_setup_entry(
     config_entry: config_entries.ConfigEntry,
     async_add_entities,
 ) -> None:
-
     config = hass.data[DOMAIN][config_entry.entry_id]
 
     if config_entry.options:
@@ -41,7 +36,6 @@ class EmotivaDevice(RemoteEntity):
     # Representation of a Emotiva Processor
 
     def __init__(self, device, hass):
-
         self._device = device
         self._hass = hass
         self._entity_id = "remote.emotivaprocessor"

@@ -2,17 +2,14 @@ from __future__ import annotations
 
 import logging
 
-from .const import DOMAIN
-
+from homeassistant import config_entries, core
 from homeassistant.components.select import (
     SelectEntity,
 )
-
-from homeassistant import config_entries, core
-
 from homeassistant.core import callback
-
 from homeassistant.helpers.device_registry import DeviceInfo
+
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -3,23 +3,20 @@
 import logging
 
 from homeassistant import config_entries, core
-from homeassistant.const import Platform
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
-
-from .emotiva import Emotiva, EmotivaNotifier
-
 from homeassistant.components.network import async_get_source_ip
+from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, Platform
 
 from .const import (
-    DOMAIN,
-    CONF_NOTIFICATIONS,
-    CONF_NOTIFY_PORT,
     CONF_CTRL_PORT,
-    CONF_PROTO_VER,
     CONF_DISCOVER,
     CONF_MANUAL,
+    CONF_NOTIFICATIONS,
+    CONF_NOTIFY_PORT,
+    CONF_PROTO_VER,
     CONF_TYPE,
+    DOMAIN,
 )
+from .emotiva import Emotiva, EmotivaNotifier
 
 
 class EmotivaNotifiers(object):

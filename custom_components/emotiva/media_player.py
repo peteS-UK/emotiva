@@ -1,39 +1,34 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
-from .const import DOMAIN
-
 import voluptuous as vol
-
+from homeassistant import config_entries, core
 from homeassistant.components.media_player import (
     PLATFORM_SCHEMA,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
 )
-
-from homeassistant import config_entries, core
-
 from homeassistant.const import CONF_HOST, CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import (
     config_validation as cv,
+)
+from homeassistant.helpers import (
     entity_platform,
 )
-
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import (
+    CONF_CTRL_PORT,
     CONF_NOTIFICATIONS,
     CONF_NOTIFY_PORT,
-    CONF_CTRL_PORT,
     CONF_PROTO_VER,
+    DOMAIN,
     SERVICE_SEND_COMMAND,
 )
-
-
-import asyncio
 
 _LOGGER = logging.getLogger(__name__)
 

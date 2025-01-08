@@ -1,28 +1,24 @@
 import logging
-
 from typing import Any
 
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
+from homeassistant import config_entries
+from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME
+from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
 from .const import (
-    DOMAIN,
     CONF_CTRL_PORT,
     CONF_NOTIFICATIONS,
     CONF_NOTIFY_PORT,
     CONF_PROTO_VER,
     CONF_TYPE,
-)
-
-from homeassistant import config_entries
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
-from homeassistant.core import callback
-
-import homeassistant.helpers.config_validation as cv
-
-from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-    SelectSelectorMode,
+    DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
