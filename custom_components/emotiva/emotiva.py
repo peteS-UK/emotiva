@@ -322,12 +322,13 @@ class Emotiva(object):
         self._local_ip = self._get_local_ip()
 
     def _get_local_ip(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.connect((self._ip, self._ctrl_port))
-        _local_ip = sock.getsockname()[0]
-        sock.close()
-        _LOGGER.debug("Local IP: ", _local_ip)
-        return _local_ip
+        #        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        #        sock.connect((self._ip, self._ctrl_port))
+        #        _local_ip = sock.getsockname()[0]
+        #        sock.close()
+        #        return _local_ip
+        _LOGGER.debug("Local IP: %s", self._hass.config.api.local_ip)
+        return self._hass.config.api.local_ip
 
     def connect(self):
         self._ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
