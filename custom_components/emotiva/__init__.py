@@ -3,20 +3,23 @@
 import logging
 
 from homeassistant import config_entries, core
+from homeassistant.const import Platform
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
+
+from .emotiva import Emotiva, EmotivaNotifier
+
 from homeassistant.components.network import async_get_source_ip
-from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, Platform
 
 from .const import (
-    CONF_CTRL_PORT,
-    CONF_DISCOVER,
-    CONF_MANUAL,
+    DOMAIN,
     CONF_NOTIFICATIONS,
     CONF_NOTIFY_PORT,
+    CONF_CTRL_PORT,
     CONF_PROTO_VER,
+    CONF_DISCOVER,
+    CONF_MANUAL,
     CONF_TYPE,
-    DOMAIN,
 )
-from .emotiva import Emotiva, EmotivaNotifier
 
 
 class EmotivaNotifiers(object):
@@ -60,7 +63,7 @@ async def async_setup_entry(
                 if elem is not None:
                     _notify_port = int(elem.text)
 
-            emotiva.append(Emotiva(hass, _ip, _xml))
+            emotiva.append(Emotiva(hass, entry, _ip, _xml))
             _LOGGER.debug("Adding %s from Discovery", _ip)
 
     elif hass_data.get(CONF_TYPE, None) == "Manual" or hass_data.get(CONF_MANUAL, None):
@@ -78,6 +81,7 @@ async def async_setup_entry(
         emotiva.append(
             Emotiva(
                 hass,
+                entry,
                 hass_data[CONF_HOST],
                 transp_xml="",
                 _ctrl_port=hass_data[CONF_CTRL_PORT],

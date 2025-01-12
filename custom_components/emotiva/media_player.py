@@ -1,34 +1,39 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 
+from .const import DOMAIN
+
 import voluptuous as vol
-from homeassistant import config_entries, core
+
 from homeassistant.components.media_player import (
     PLATFORM_SCHEMA,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
 )
+
+from homeassistant import config_entries, core
+
 from homeassistant.const import CONF_HOST, CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import (
     config_validation as cv,
-)
-from homeassistant.helpers import (
     entity_platform,
 )
+
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import (
-    CONF_CTRL_PORT,
     CONF_NOTIFICATIONS,
     CONF_NOTIFY_PORT,
+    CONF_CTRL_PORT,
     CONF_PROTO_VER,
-    DOMAIN,
     SERVICE_SEND_COMMAND,
 )
+
+
+import asyncio
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -118,6 +123,9 @@ class EmotivaDevice(MediaPlayerEntity):
             await self._device.async_set_mode(self._device.mode)
         else:
             await self._device.async_set_mode("Stereo")
+        self._ping_task = self._hass.async_create_background_task(
+            self._device.run_ping_watcher(), name="emotiva ping watcher task"
+        )
 
     @callback
     def async_update_callback(self, reason=False):
@@ -133,6 +141,12 @@ class EmotivaDevice(MediaPlayerEntity):
         await self._device.udp_disconnect()
 
         await self._device.unregister_from_notifier()
+
+        try:
+            await self._device.stop_ping_watcher()
+            self._ping_task.cancel()
+        except Exception:
+            pass
 
     @property
     def should_poll(self):

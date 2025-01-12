@@ -1,24 +1,32 @@
 import logging
+
 from typing import Any
 
-import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant import config_entries
-from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME
-from homeassistant.core import callback
-from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-    SelectSelectorMode,
-)
 
 from .const import (
+    DOMAIN,
     CONF_CTRL_PORT,
     CONF_NOTIFICATIONS,
     CONF_NOTIFY_PORT,
     CONF_PROTO_VER,
     CONF_TYPE,
-    DOMAIN,
+    CONF_PING_INTERVAL,
+)
+
+from homeassistant import config_entries
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
+from homeassistant.core import callback
+
+import homeassistant.helpers.config_validation as cv
+
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,7 +69,21 @@ EMO_MANUAL_SCHEMA = vol.Schema(
     }
 )
 
-EMO_OPTIONS_SCHEMA = vol.Schema({vol.Optional(CONF_NOTIFICATIONS): cv.string})
+EMO_OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_NOTIFICATIONS): cv.string,
+        vol.Optional(
+            "delete_existing",
+            default=False,
+        ): cv.boolean,
+        vol.Optional(CONF_PING_INTERVAL): vol.All(
+            NumberSelector(
+                NumberSelectorConfig(min=0, max=600, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Coerce(int),
+        ),
+    }
+)
 
 
 class EmotivaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -102,13 +124,13 @@ class EmotivaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return OptionsFlowHandler()
+        return OptionsFlowHandler(config_entry)
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
-    def __init__(self) -> None:
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        # self.config_entry = config_entry
+        self.config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         _LOGGER.debug("1 user_input %s", user_input)
@@ -117,22 +139,22 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             if user_input["delete_existing"]:
                 _LOGGER.debug("Deleting existing notification entry")
-                del user_input["notifications"]
+                del user_input[CONF_NOTIFICATIONS]
             _LOGGER.debug("Returning %s", user_input)
             return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
+            data_schema=self.add_suggested_values_to_schema(
+                EMO_OPTIONS_SCHEMA,
                 {
-                    vol.Optional(
-                        "notifications",
-                        default=self.config_entry.options.get("notifications"),
-                    ): cv.string,
-                    vol.Optional(
-                        "delete_existing",
-                        default=False,
-                    ): cv.boolean,
-                }
+                    CONF_NOTIFICATIONS: self.config_entry.options.get(
+                        CONF_NOTIFICATIONS
+                    ),
+                    CONF_PING_INTERVAL: self.config_entry.options.get(
+                        CONF_PING_INTERVAL, 60
+                    ),
+                    "delete_existing": False,
+                },
             ),
         )

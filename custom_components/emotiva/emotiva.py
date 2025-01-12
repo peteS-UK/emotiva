@@ -6,6 +6,9 @@ import time
 
 import asyncio_datagram
 from lxml import etree
+from asyncping3 import ping
+
+from .const import CONF_PING_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +27,52 @@ class InvalidSourceError(Error):
 
 class InvalidModeError(Error):
     pass
+
+
+class PingWatcherService:
+    def __init__(self, hass, config_entry, host):
+        self._hass = hass
+        self._config_entry = config_entry
+        self._host = host
+        self._stop = False
+
+    async def start(self):
+        while await ping(self._host, timeout=1) and not self._stop:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+                # Disable the listener
+                _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
+                self._stop = True
+                break
+            # Ping succeeded - wait and retry
+            await asyncio.sleep(
+                int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+            )
+        # Ping failed, so wait until it succeeds again
+        if not self._stop:
+            _LOGGER.error(
+                "Connectivity lost to %s.  Waiting for availability.", self._host
+            )
+        while not await ping(self._host, timeout=1) and not self._stop:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+                _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
+                # Disable the listener
+                self._stop = True
+                break
+            # Ping failed - wait and retry
+            await asyncio.sleep(
+                int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+            )
+        # Ping succeeded, so it's back, so reload
+        if not self._stop:
+            _LOGGER.error(
+                "Connectivity re-established with %s.  Reloading configuration",
+                self._host,
+            )
+            await asyncio.sleep(30)
+            self._hass.config_entries.async_schedule_reload(self._config_entry.entry_id)
+
+    async def stop(self):
+        self._stop = True
 
 
 class EmotivaNotifiers(object):
@@ -102,6 +151,7 @@ class Emotiva(object):
     def __init__(
         self,
         hass,
+        config_entry,
         ip,
         transp_xml="",
         _ctrl_port=None,
@@ -114,6 +164,7 @@ class Emotiva(object):
         events=NOTIFY_EVENTS,
     ):
         self._hass = hass
+        self._config_entry = config_entry
         self._ip = ip
         self._name = _name
         self._model = _model
@@ -169,6 +220,7 @@ class Emotiva(object):
                 "input_8",
             ]
         )
+        self.ping_watcher = PingWatcherService(self._hass, self._config_entry, ip)
 
         if not self._ctrl_port or not self._notify_port:
             self.__parse_transponder(transp_xml)
@@ -579,6 +631,14 @@ class Emotiva(object):
 
     def set_update_cb(self, cb):
         self._update_cb = cb
+
+    async def run_ping_watcher(self):
+        _LOGGER.debug("Setting up Ping Watcher")
+        await self.ping_watcher.start()
+
+    async def stop_ping_watcher(self):
+        _LOGGER.debug("Stopping Ping Watcher")
+        await self.ping_watcher.stop()
 
     @classmethod
     def discover(cls, version=2):

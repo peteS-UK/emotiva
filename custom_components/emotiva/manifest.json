@@ -11,7 +11,8 @@
   "issue_tracker": "https://github.com/peteS-UK/emotiva/issues",
   "requirements": [
     "lxml",
-    "asyncio_datagram"
+    "asyncio_datagram",
+    "asyncping3"
   ],
-  "version": "2.0.1b1"
+  "version": "2.1.0b1"
 }

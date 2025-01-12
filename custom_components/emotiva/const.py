@@ -5,6 +5,7 @@ CONF_PROTO_VER = "protocol_version"
 CONF_DISCOVER = "discover"
 CONF_MANUAL = "manual"
 CONF_TYPE = "type"
+CONF_PING_INTERVAL = "ping_interval"
 
 DOMAIN = "emotiva"
 DEFAULT_NAME = "Emotiva Processor"
