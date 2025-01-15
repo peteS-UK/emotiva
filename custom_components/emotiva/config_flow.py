@@ -11,6 +11,7 @@ from .const import (
     CONF_NOTIFY_PORT,
     CONF_PROTO_VER,
     CONF_TYPE,
+    CONF_PING_INTERVAL,
 )
 
 from homeassistant import config_entries
@@ -23,6 +24,9 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,7 +69,21 @@ EMO_MANUAL_SCHEMA = vol.Schema(
     }
 )
 
-EMO_OPTIONS_SCHEMA = vol.Schema({vol.Optional(CONF_NOTIFICATIONS): cv.string})
+EMO_OPTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_NOTIFICATIONS): cv.string,
+        vol.Optional(
+            "delete_existing",
+            default=False,
+        ): cv.boolean,
+        vol.Optional(CONF_PING_INTERVAL): vol.All(
+            NumberSelector(
+                NumberSelectorConfig(min=0, max=600, mode=NumberSelectorMode.SLIDER)
+            ),
+            vol.Coerce(int),
+        ),
+    }
+)
 
 
 class EmotivaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -121,22 +139,22 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             if user_input["delete_existing"]:
                 _LOGGER.debug("Deleting existing notification entry")
-                del user_input["notifications"]
+                del user_input[CONF_NOTIFICATIONS]
             _LOGGER.debug("Returning %s", user_input)
             return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
+            data_schema=self.add_suggested_values_to_schema(
+                EMO_OPTIONS_SCHEMA,
                 {
-                    vol.Optional(
-                        "notifications",
-                        default=self.config_entry.options.get("notifications"),
-                    ): cv.string,
-                    vol.Optional(
-                        "delete_existing",
-                        default=False,
-                    ): cv.boolean,
-                }
+                    CONF_NOTIFICATIONS: self.config_entry.options.get(
+                        CONF_NOTIFICATIONS
+                    ),
+                    CONF_PING_INTERVAL: self.config_entry.options.get(
+                        CONF_PING_INTERVAL, 60
+                    ),
+                    "delete_existing": False,
+                },
             ),
         )

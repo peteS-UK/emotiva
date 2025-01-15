@@ -63,7 +63,7 @@ async def async_setup_entry(
                 if elem is not None:
                     _notify_port = int(elem.text)
 
-            emotiva.append(Emotiva(hass, _ip, _xml))
+            emotiva.append(Emotiva(hass, entry, _ip, _xml))
             _LOGGER.debug("Adding %s from Discovery", _ip)
 
     elif hass_data.get(CONF_TYPE, None) == "Manual" or hass_data.get(CONF_MANUAL, None):
@@ -81,6 +81,7 @@ async def async_setup_entry(
         emotiva.append(
             Emotiva(
                 hass,
+                entry,
                 hass_data[CONF_HOST],
                 transp_xml="",
                 _ctrl_port=hass_data[CONF_CTRL_PORT],

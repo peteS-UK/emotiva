@@ -123,6 +123,9 @@ class EmotivaDevice(MediaPlayerEntity):
             await self._device.async_set_mode(self._device.mode)
         else:
             await self._device.async_set_mode("Stereo")
+        self._ping_task = self._hass.async_create_background_task(
+            self._device.run_ping_watcher(), name="emotiva ping watcher task"
+        )
 
     @callback
     def async_update_callback(self, reason=False):
@@ -138,6 +141,12 @@ class EmotivaDevice(MediaPlayerEntity):
         await self._device.udp_disconnect()
 
         await self._device.unregister_from_notifier()
+
+        try:
+            await self._device.stop_ping_watcher()
+            self._ping_task.cancel()
+        except Exception:
+            pass
 
     @property
     def should_poll(self):

@@ -34,7 +34,8 @@
         "title": "Additional Notifications",
         "data": {
           "notifications": "Notifications to track",
-          "delete_existing": "Tick to remove existing additional notifications"
+          "delete_existing": "Tick to remove existing additional notifications",
+          "ping_interval": "Number of seconds between connectivity check pings.  0 to disable"
         },
         "description": "Add additional notifications to track as entity attributes"
       }
