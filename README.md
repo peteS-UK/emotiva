@@ -4,7 +4,7 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
 
-This custom component implements a media player entity and a remote entity for Home Assistant to allow for integration with Emotiva processors.  It's written for the Emotiva XMC-1 but now also been tested with XMC-2 and RMC-1 and works generally fine.  There are some limitiations with the XMC-2 and RMC-1 where the published API doesn't support some functions on these devices.  This includes the ability to switch between speaker presets/Dirac etc., where the API only supports the XMC-1 preset design and Emotiva have no plans to update the API in this area for the Gen 3 processors.
+This custom component implements a media player entity, a remote entity and a number of sensors for Home Assistant to allow for integration with Emotiva processors.  It was written for the Emotiva XMC-1 but now also been tested with XMC-2 and RMC-1 and works generally fine.  There are some limitiations with the XMC-2 and RMC-1 where the published API doesn't support some functions on these devices.  This includes the ability to switch between speaker presets/Dirac etc., where the API only supports the XMC-1 preset design and Emotiva currently have no plans to update the API in this area for the Gen 3 processors.
 
 The integration is a Local Push integration - i.e. it subscribes to notification of changes to the processor, so doesn't need to periodically poll the processor for its state.
 
@@ -22,22 +22,24 @@ Configuration is done through the Home Assistant UI.  Once you're installed the 
 
 This will display the configuration page.  
 
-![image](https://github.com/peteS-UK/emotiva/assets/64092177/ce713057-3268-4787-ae1e-1bfb3d401915)
+![image](https://github.com/user-attachments/assets/eabfad32-22b2-437b-9afa-8ff89648d730)
+
 
 ### Discover Processors
-Checking the "Search for Emotiva Processors" option will ask the integration to search for processors during the setup process.  This uses udp broadcast, and so will only find processors on the same subnet as your Home Assistant server.  If discovery fails, or if your processors is on a different subnet, you can enter details manually.
+Checking the "Search for Emotiva Processors" option will ask the integration to search for processors each time your restart Home Assistant or reload the integration.  This uses udp broadcast, and so will normally only find processors on the same subnet as your Home Assistant server.  If discovery fails, or if your processors is on a different subnet, you can enter details manually.
 
 ### Manual Entry
 You can enter the details of your processor manually by ticking "Enter details manually", and completing the fields.  At minumum, you must enter the IP Address and the Name of your processor.  Unless you know otherwise, you can likely leave the Control Port, Notification Port and Protocol to their default values.
 
-When you select Submit, the configuration will discover the processor(s) and setup the components in Home Assistant.  It will create one device, two entities and a service.
+![image](https://github.com/user-attachments/assets/0e10c430-0720-424a-b1f4-355fb45446e1)
+
+
+When you select Submit, the configuration will discover the processor(s) and setup the components in Home Assistant.  It will create one device, nine entities and an action.
 
 ## Device & Entities
 A device will be created with the same name as your processor - e.g. XMC-1.
 
-
-![image](https://github.com/peteS-UK/emotiva/assets/64092177/1bc02025-2d97-4e16-a2e2-bfbd826bc02b)
-
+![image](https://github.com/user-attachments/assets/0cd9483d-0f5b-40b1-ab20-782e745aa398)
 
 ### Media Player entity
 A media player entity will be created with a default entity_id of media_player.emotivaprocessor.  
@@ -48,7 +50,7 @@ A media player entity will be created with a default entity_id of media_player.e
 
 You can control power state, volume, muting, source and sound mode from the media player.  You can also use this entity from any card for media player.
 
-### Remote Entity & Service
+### Remote Entity & Action
 The remote entity allows you to control power, but is primarily included so that you can send commands directly to the Emotiva processor using the remote.send_command service.
 
 
