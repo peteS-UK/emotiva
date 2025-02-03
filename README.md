@@ -2,7 +2,7 @@
 
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-blue.svg?style=for-the-badge)](https://github.com/hacs/integration)
-[![maintained](https://img.shields.io/maintenance/yes/2025.svg)](#) 
+[![maintained](https://img.shields.io/maintenance/yes/2025.svg)]
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petesUK-blue.svg)]
 
 
