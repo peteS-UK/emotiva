@@ -12,7 +12,9 @@ The integration is a Local Push integration - i.e. it subscribes to notification
 
 ## Installation
 
-The preferred installation approach is via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  The repo is installable as a [Custom Repo](https://hacs.xyz/docs/faq/custom_repositories) via HACS.
+The preferred installation approach is via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=peteS-UK&repository=emotiva&category=integration)
 
 If you want to download the integration manually, create a new folder called emotiva under your custom_components folder in your config folder.  If the custom_components folder doesn't exist, create it first.  Once created, download the files and folders from the [github repo](https://github.com/peteS-UK/emotiva/tree/main/custom_components/emotiva) into this new emotiva folder.
 
@@ -20,7 +22,11 @@ Once downloaded either via HACS or manually, restart your Home Assistant server.
 
 ## Configuration
 
-Configuration is done through the Home Assistant UI.  Once you're installed the integration, go into your Integrations (under Settings, Devices & Services), select Add Integration, and choose the Emotiva Processor integration.
+Configuration is done through the Home Assistant UI.  Once you're installed the integration, go into your Integrations (under Settings, Devices & Services), select Add Integration, and choose the Emotiva Processor integration, or click the shortcut button below (requires My Homeassistant configured).
+
+[![Add Integration to your Home Assistant
+instance.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=emotiva)
+
 
 This will display the configuration page.  
 
