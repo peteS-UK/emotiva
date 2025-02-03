@@ -1,7 +1,7 @@
 # Home Assistant to Emotiva Processor Media Player
 
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-blue.svg](https://github.com/hacs/integration)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
 [![maintained](https://img.shields.io/maintenance/yes/2025.svg)](#)
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petesUK-blue.svg)](#)
 
