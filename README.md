@@ -59,6 +59,16 @@ A media player entity will be created with a default entity_id of media_player.e
 
 You can control power state, volume, muting, source and sound mode from the media player.  You can also use this entity from any card for media player.
 
+### Sensors and Source
+A source entity will be created, allowing you to directly select the source from an entity on your dashboard for example.  
+
+![image](https://github.com/user-attachments/assets/1e2978da-23f2-4ecc-96d7-2546d676df7e)
+
+6 sensors to display info such as volume, video format, audio format etc. are also created, enabling you to show the type of info you see on the processors from screen.
+
+![image](https://github.com/user-attachments/assets/2a7c6d21-3b9b-4f3d-a966-5458fa0b1e85)
+
+
 ### Remote Entity & Action
 The remote entity allows you to control power, but is primarily included so that you can send commands directly to the Emotiva processor using the remote.send_command service.
 
