@@ -16,8 +16,6 @@
           "host": "IP Address of the Emotiva Processor",
           "name": "Name of the Emotiva Processor",
           "model": "Model of Processor",
-          "control_port": "Control Port : Default 7002",
-          "notify_port": "Notification Port: Default 7003",
           "protocol_version": "Protocol Version: Default 3.0"
         },
         "description": "Enter the details for your processor.",
