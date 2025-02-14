@@ -38,10 +38,9 @@ This will display the configuration page.
 Checking the "Search for Emotiva Processors" option will ask the integration to search for processors each time your restart Home Assistant or reload the integration.  This uses udp broadcast, and so will normally only find processors on the same subnet as your Home Assistant server.  If discovery fails, or if your processors is on a different subnet, you can enter details manually.
 
 ### Manual Entry
-You can enter the details of your processor manually by ticking "Enter details manually", and completing the fields.  At minumum, you must enter the IP Address and the Name of your processor.  Unless you know otherwise, you can likely leave the Control Port, Notification Port and Protocol to their default values.
+You can enter the details of your processor manually by ticking "Enter details manually", and completing the fields.  At minumum, you must enter the IP Address and the Name of your processor.  Unless you know otherwise, you can likely leave the Protocol to its default values.
 
-![image](https://github.com/user-attachments/assets/0e10c430-0720-424a-b1f4-355fb45446e1)
-
+![image](https://github.com/user-attachments/assets/2ef64d26-898d-47ae-ab5d-fdc0cff07faf)
 
 When you select Submit, the configuration will discover the processor(s) and setup the components in Home Assistant.  It will create one device, nine entities and an action.
 
