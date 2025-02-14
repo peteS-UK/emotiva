@@ -6,9 +6,7 @@ import voluptuous as vol
 
 from .const import (
     DOMAIN,
-    CONF_CTRL_PORT,
     CONF_NOTIFICATIONS,
-    CONF_NOTIFY_PORT,
     CONF_PROTO_VER,
     CONF_TYPE,
     CONF_PING_INTERVAL,
@@ -55,8 +53,6 @@ EMO_MANUAL_SCHEMA = vol.Schema(
                 options=["XMC-1", "XMC-2", "RMC-1", "RMC-1l"],
             )
         ),
-        vol.Required(CONF_CTRL_PORT, default=7002): vol.Coerce(int),
-        vol.Required(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int),
         vol.Required(CONF_PROTO_VER, default="3.0"): vol.All(
             SelectSelector(
                 SelectSelectorConfig(

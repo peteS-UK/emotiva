@@ -1,5 +1,7 @@
 CONF_CTRL_PORT = "control_port"
+DEFAULT_CTRL_PORT = 7002
 CONF_NOTIFY_PORT = "notify_port"
+DEFAULT_NOTIFY_PORT = 7003
 CONF_NOTIFICATIONS = "notifications"
 CONF_PROTO_VER = "protocol_version"
 CONF_DISCOVER = "discover"
