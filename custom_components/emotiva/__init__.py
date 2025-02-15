@@ -186,7 +186,12 @@ async def async_unload_entry(
             len(hass.config_entries.async_loaded_entries(DOMAIN)) - 1,
         )
 
-        if len(hass.config_entries.async_loaded_entries(DOMAIN)) == 1:
+        other_loaded_entries = [
+            _entry
+            for _entry in hass.config_entries.async_loaded_entries(DOMAIN)
+            if _entry.entry_id != entry.entry_id
+        ]
+        if not other_loaded_entries:
             _LOGGER.debug("Unloading Listeners")
             _notifiers = hass.data[DOMAIN]["notifiers"]
             await _notifiers.subscription._async_stop()
