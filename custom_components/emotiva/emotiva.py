@@ -589,10 +589,16 @@ class Emotiva(object):
                 # _LOGGER.debug("Handling Protocol V3 xml")
                 elem.tag = elem.get("name")
             if elem.tag not in self._current_state:
-                _LOGGER.debug("Unknown element: %s" % elem.tag)
+                _LOGGER.debug("Element not in current state: %s" % elem.tag)
                 continue
             val = (elem.get("value") or "").strip()
             visible = (elem.get("visible") or "").strip()
+            _LOGGER.debug(
+                "Processing element %s with value %s and visible %s",
+                elem.tag,
+                val,
+                visible,
+            )
             # update mode status
             if elem.tag.startswith("mode_"):
                 for v in self._modes.items():
