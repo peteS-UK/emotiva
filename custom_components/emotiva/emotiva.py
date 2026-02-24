@@ -101,10 +101,19 @@ class EmotivaNotifier(object):
         try:
             stream = await asyncio_datagram.bind((local_ip, local_port))
         except IOError as e:
-            _LOGGER.critical("Cannot bind to local socket %d: %s", e.errno, e.strerror)
+            _LOGGER.critical(
+                "Cannot bind to local socket (%s:%d) %d: %s",
+                local_ip,
+                local_port,
+                e.errno,
+                e.strerror,
+            )
         except Exception:
             _LOGGER.critical(
-                "Unknown error on binding to local socket %s", sys.exc_info()[0]
+                "Unknown error on binding to local socket (%s:%d) %s",
+                local_ip,
+                local_port,
+                sys.exc_info()[0],
             )
 
         self._stream = stream
