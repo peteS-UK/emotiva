@@ -1,6 +1,10 @@
 """The emotiva component."""
 
 import logging
+import asyncio
+
+# How long to wait for notifier tasks to finish after cancellation
+NOTIFIER_TASK_AWAIT_TIMEOUT = 5
 
 from homeassistant import config_entries, core
 from homeassistant.components.network import async_get_source_ip
@@ -18,14 +22,7 @@ from .const import (
     DEFAULT_NOTIFY_PORT,
     DOMAIN,
 )
-from .emotiva import Emotiva, EmotivaNotifier
-
-
-class EmotivaNotifiers(object):
-    subscription: object
-    subscription_task: object
-    command: object
-    command_task: object
+from .emotiva import Emotiva, EmotivaNotifiers, EmotivaNotifier
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -127,15 +124,24 @@ async def async_setup_entry(
 
         _local_ip = await async_get_source_ip(hass)
 
-        notifiers.subscription_task = hass.async_create_background_task(
+        subscription_task = hass.async_create_background_task(
             notifiers.subscription._async_start(_local_ip, _notify_port),
             name="emotiva subscription notifier task",
         )
+        # store task on notifier for easier management
+        try:
+            notifiers.subscription._task = subscription_task
+        except Exception:
+            pass
 
-        notifiers.command_task = hass.async_create_background_task(
+        command_task = hass.async_create_background_task(
             notifiers.command._async_start(_local_ip, _control_port),
             name="emotiva command notifier task",
         )
+        try:
+            notifiers.command._task = command_task
+        except Exception:
+            pass
 
         hass.data[DOMAIN]["notifiers"] = notifiers
 
@@ -193,11 +199,47 @@ async def async_unload_entry(
         ]
         if not other_loaded_entries:
             _LOGGER.debug("Unloading Listeners")
-            _notifiers = hass.data[DOMAIN]["notifiers"]
-            await _notifiers.subscription._async_stop()
-            await _notifiers.command._async_stop()
-            _notifiers.subscription_task.cancel()
-            _notifiers.command_task.cancel()
+            _notifiers = hass.data[DOMAIN].get("notifiers")
+            if _notifiers is not None:
+                # Cancel background tasks first to wake any blocked recv()
+                for notifier_name in ("subscription", "command"):
+                    notifier = getattr(_notifiers, notifier_name, None)
+                    if notifier is None:
+                        continue
+                    task = getattr(notifier, "_task", None)
+                    if task is not None and not task.done():
+                        task.cancel()
+
+            # Await tasks to ensure they have finished
+            for notifier_name in ("subscription", "command"):
+                notifier = getattr(_notifiers, notifier_name, None)
+                if notifier is None:
+                    continue
+                task = getattr(notifier, "_task", None)
+                if task is None:
+                    continue
+                try:
+                    await asyncio.wait_for(task, timeout=NOTIFIER_TASK_AWAIT_TIMEOUT)
+                except asyncio.TimeoutError:
+                    _LOGGER.error(
+                        "Timeout while awaiting notifier task %s after cancel",
+                        notifier_name,
+                    )
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    _LOGGER.exception("Error awaiting notifier task %s", notifier_name)
+
+            # Ensure notifier streams are stopped (idempotent)
+            try:
+                await _notifiers.subscription._async_stop()
+            except Exception:
+                _LOGGER.exception("Error stopping subscription notifier")
+            try:
+                await _notifiers.command._async_stop()
+            except Exception:
+                _LOGGER.exception("Error stopping command notifier")
+
             del hass.data[DOMAIN]["notifiers"]
 
     return unload_ok

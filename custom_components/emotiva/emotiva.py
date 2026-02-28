@@ -11,6 +11,7 @@ from asyncping3 import ping
 from .const import CONF_PING_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
+UDP_OP_TIMEOUT = 5
 
 
 class Error(Exception):
@@ -38,7 +39,7 @@ class PingWatcherService:
 
     async def start(self):
         while not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 0)) == 0:
                 # Disable the listener
                 _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
                 self._stop = True
@@ -63,7 +64,7 @@ class PingWatcherService:
                 "Connectivity lost to %s.  Waiting for availability.", self._host
             )
         while not await ping(self._host, timeout=1) and not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 0)) == 0:
                 _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
                 # Disable the listener
                 self._stop = True
@@ -88,8 +89,14 @@ class PingWatcherService:
 class EmotivaNotifier(object):
     def __init__(self):
         self._devs = {}
+        # runtime control
+        self._running = False
+        self._stream = None
+        # background task reference (set by caller)
+        self._task = None
 
     async def _async_start(self, local_ip, local_port):
+        self._running = True
         stream: asyncio_datagram.DatagramServer = None
         _LOGGER.debug("Starting Listener on %s:%d", local_ip, local_port)
         try:
@@ -103,20 +110,49 @@ class EmotivaNotifier(object):
 
         self._stream = stream
 
-        while True and stream is not None:
-            data, remote_addr = await stream.recv()
+        try:
+            while self._running and self._stream is not None:
+                try:
+                    data, remote_addr = await self._stream.recv()
+                except (asyncio.CancelledError, OSError) as exc:
+                    _LOGGER.debug("Listener recv stopped: %s", exc)
+                    break
 
-            _LOGGER.debug(
-                "Received notification from %s\n%s",
-                remote_addr[0],
-                data.decode() if isinstance(data, bytes) else data,
-            )
+                if not data or not remote_addr:
+                    await asyncio.sleep(0.1)
+                    continue
 
-            cb = self._devs[remote_addr[0]]
+                host = remote_addr[0]
+                _LOGGER.debug(
+                    "Received notification from %s\n%s",
+                    host,
+                    data.decode() if isinstance(data, bytes) else data,
+                )
 
-            cb(data)
+                cb = self._devs.get(host)
+                if cb:
+                    try:
+                        cb(data)
+                    except Exception:
+                        _LOGGER.exception("Error in notification callback for %s", host)
+                else:
+                    _LOGGER.debug("No callback registered for %s", host)
 
-            await asyncio.sleep(0.1)
+                await asyncio.sleep(0.1)
+        finally:
+            try:
+                if self._stream is not None:
+                    close = getattr(self._stream, "close", None)
+                    if callable(close):
+                        close()
+                    wait_closed = getattr(self._stream, "wait_closed", None)
+                    if callable(wait_closed):
+                        await wait_closed()
+            except Exception:
+                _LOGGER.debug("Error closing stream: %s", sys.exc_info()[0])
+            self._stream = None
+            self._running = False
+            _LOGGER.debug("Listener stopped")
 
     async def _async_register(self, callback, remote_ip):
         _LOGGER.debug("Registering %s with listener", remote_ip)
@@ -125,17 +161,34 @@ class EmotivaNotifier(object):
             self._devs[remote_ip] = callback
 
     async def _async_stop(self):
-        self._stream.close()
+        _LOGGER.debug("Stopping listener")
+        self._running = False
+        stream = self._stream
+        if stream is None:
+            return
+        try:
+            close = getattr(stream, "close", None)
+            if callable(close):
+                close()
+            wait_closed = getattr(stream, "wait_closed", None)
+            if callable(wait_closed):
+                await wait_closed()
+        except Exception:
+            _LOGGER.exception("Error while stopping listener")
+        finally:
+            self._stream = None
 
     async def _async_unregister(self, remote_ip):
-        del self._devs[remote_ip]
+        if remote_ip in self._devs:
+            del self._devs[remote_ip]
+            _LOGGER.debug("Unregistered %s from listener", remote_ip)
+        else:
+            _LOGGER.debug("Attempted to unregister %s but not found", remote_ip)
 
 
 class EmotivaNotifiers(object):
     subscription: EmotivaNotifier
-    subscription_task: asyncio.Task
     command: EmotivaNotifier
-    command_task: asyncio.Task
 
 
 class Emotiva(object):
@@ -187,7 +240,7 @@ class Emotiva(object):
         self._volume_max = 11
         self._volume_min = -96
         self._volume_range = self._volume_max - self._volume_min
-        self._udp_stream
+        self._udp_stream = None
         self._update_cb = None
         self._remote_update_cb = None
         self._select_update_cb = None
@@ -387,11 +440,6 @@ class Emotiva(object):
         self._local_ip = self._get_local_ip()
 
     def _get_local_ip(self):
-        #        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        #        sock.connect((self._ip, self._ctrl_port))
-        #        _local_ip = sock.getsockname()[0]
-        #        sock.close()
-        #        return _local_ip
         _LOGGER.debug("Local IP: %s", self._hass.config.api.local_ip)
         return self._hass.config.api.local_ip
 
@@ -417,7 +465,9 @@ class Emotiva(object):
 
     def _notify_handler(self, data):
         _LOGGER.debug("Notify Handler called.")
-        _decoded_data = data.decode("utf-8")
+        _decoded_data = (
+            data.decode("utf-8") if isinstance(data, (bytes, bytearray)) else str(data)
+        )
         if "emotivaUnsubscribe" not in _decoded_data:
             resp = self._parse_response(data)
             self._handle_status(resp)
@@ -434,7 +484,7 @@ class Emotiva(object):
         msg = self.format_request(
             "emotivaSubscription",
             [(ev, None) for ev in events],
-            {"protocol": "3.0"} if self._proto_ver == 3.0 else {},
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else None,
         )
         await self._async_send_request(msg, ack=True)
 
@@ -442,7 +492,7 @@ class Emotiva(object):
         msg = self.format_request(
             "emotivaUnsubscribe",
             [(ev, None) for ev in events],
-            {"protocol": "3.0"} if self._proto_ver == 3.0 else {},
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else None,
         )
         await self._async_send_request(msg, ack=True)
 
@@ -450,7 +500,7 @@ class Emotiva(object):
         msg = self.format_request(
             "emotivaUpdate",
             [(ev, {}) for ev in events],
-            {"protocol": "3.0"} if self._proto_ver == 3 else {},
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else None,
         )
         await self._async_send_request(msg, ack=True)
 
@@ -469,21 +519,28 @@ class Emotiva(object):
 
     async def udp_connect(self):
         try:
-            #            self._udp_stream = await asyncio_datagram.connect(
-            #                (self._ip, self._ctrl_port), (self._local_ip, self._ctrl_port)
-            #            )
-            self._udp_stream = await asyncio_datagram.connect(
-                (self._ip, self._ctrl_port)
+
+            # Use a timeout because asyncio_datagram.connect has no built-in timeout
+            self._udp_stream = await asyncio.wait_for(
+                asyncio_datagram.connect((self._ip, self._ctrl_port)),
+                timeout=UDP_OP_TIMEOUT,
             )
         except IOError as e:
             _LOGGER.critical(
                 "Cannot connect control listener socket %d: %s", e.errno, e.strerror
             )
         except Exception:
-            _LOGGER.critical(
-                "Unknown error on control listener socket connection %s",
-                sys.exc_info()[0],
-            )
+            if isinstance(sys.exc_info()[1], asyncio.TimeoutError):
+                _LOGGER.critical(
+                    "Timeout while connecting to %s:%s", self._ip, self._ctrl_port
+                )
+            else:
+                _LOGGER.critical(
+                    "Unknown error on control listener socket connection %s",
+                    sys.exc_info()[0],
+                )
+            # Ensure no half-open stream
+            self._udp_stream = None
 
     async def udp_disconnect(self):
         try:
@@ -500,15 +557,37 @@ class Emotiva(object):
                 sys.exc_info()[0],
             )
 
-    async def _udp_client(self, req, ack):
-        try:
-            await self._udp_stream.send(req)
-        except Exception:
+    async def _udp_client(self, req):
+        # Ensure we have a connected udp stream; try to connect if missing
+        if self._udp_stream is None:
+            _LOGGER.debug("UDP stream not connected, attempting to connect")
             try:
-                _LOGGER.debug("Connection lost.  Attepting to reconnect")
                 await self.udp_connect()
-                await self._udp_stream.send(req)
+            except Exception:
+                _LOGGER.exception("Error while attempting initial UDP connect")
 
+        if self._udp_stream is None:
+            _LOGGER.error("UDP stream unavailable, dropping request")
+            self._resp = None
+            return
+
+        try:
+            await asyncio.wait_for(self._udp_stream.send(req), timeout=UDP_OP_TIMEOUT)
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout while sending UDP request; attempting reconnect")
+            try:
+                await self.udp_connect()
+                if self._udp_stream is None:
+                    _LOGGER.error("Reconnect failed after timeout, dropping request")
+                    self._resp = None
+                    return
+                await asyncio.wait_for(
+                    self._udp_stream.send(req), timeout=UDP_OP_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                _LOGGER.error("Timeout on resend after reconnect, dropping request")
+                self._resp = None
+                return
             except IOError as e:
                 _LOGGER.critical(
                     "Cannot reconnect to command socket %d: %s", e.errno, e.strerror
@@ -517,64 +596,103 @@ class Emotiva(object):
                 _LOGGER.critical(
                     "Unknown error on command socket reconnection %s", sys.exc_info()[0]
                 )
+        except Exception:
+            try:
+                _LOGGER.debug("Connection lost. Attempting to reconnect")
+                await self.udp_connect()
+                if self._udp_stream is None:
+                    _LOGGER.error("Reconnect failed, dropping request")
+                    self._resp = None
+                    return
+                await asyncio.wait_for(
+                    self._udp_stream.send(req), timeout=UDP_OP_TIMEOUT
+                )
+            except Exception:
+                _LOGGER.critical(
+                    "Error while attempting to resend after exception %s",
+                    sys.exc_info()[0],
+                )
 
-        # await _stream.send(command, (self._ip, self._ctrl_port))
-        # if ack:
-        #    resp, remote_addr = await self._udp_stream.recv()
-        #    _LOGGER.debug(
-        #        "_udp_client received: \n%s",
-        #        resp.decode() if isinstance(resp, bytes) else resp,
-        #    )
-        # else:
-        #    resp = None
-
-        # _stream.close()
-
-        resp = None
-        self._resp = resp
+        # Response handling currently disabled; leave placeholder
+        self._resp = None
 
     async def _async_send_request(self, req, ack=False, process_response=True):
-        await self._udp_client(req, ack)
+        await self._udp_client(req)
 
-        # _LOGGER.debug("_async_send_request received %s", self._resp)
-
-        # if ack and process_response:
-        #    resp = self._parse_response(self._resp)
-        #    self._handle_status(resp)
+        # Used to take an ack and process response if needed, but currently not implemented as responses are not being sent by the AVR
 
     async def _async_send_emotivacontrol(self, command, value):
         msg = self.format_request(
             "emotivaControl",
             [(command, {"value": str(value), "ack": "no"})],
-            {"protocol": "3.0"} if self._proto_ver == 3 else {},
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else None,
         )
         await self._async_send_request(msg, ack=True, process_response=False)
 
     def __parse_transponder(self, transp_xml):
         # _LOGGER.debug("transp_xml %s", transp_xml)
-        elem = transp_xml.find("name")
-        if elem is not None:
+        if not transp_xml:
+            _LOGGER.error("No transponder XML provided")
+            return
+
+        try:
+            elem = transp_xml.find("name")
+        except Exception:
+            elem = None
+        if elem is not None and elem.text:
             self._name = elem.text.strip()
-        elem = transp_xml.find("model")
-        if elem is not None:
+
+        try:
+            elem = transp_xml.find("model")
+        except Exception:
+            elem = None
+        if elem is not None and elem.text:
             self._model = elem.text.strip()
 
-        ctrl = transp_xml.find("control")
-        elem = ctrl.find("version")
-        if elem is not None:
-            self._proto_ver = float(elem.text)
-        elem = ctrl.find("controlPort")
-        if elem is not None:
-            self._ctrl_port = int(elem.text)
-        elem = ctrl.find("notifyPort")
-        if elem is not None:
-            self._notify_port = int(elem.text)
-        elem = ctrl.find("infoPort")
-        if elem is not None:
-            self._info_port = int(elem.text)
-        elem = ctrl.find("setupPortTCP")
-        if elem is not None:
-            self._setup_port_tcp = int(elem.text)
+        try:
+            ctrl = transp_xml.find("control")
+        except Exception:
+            ctrl = None
+
+        if ctrl is None:
+            _LOGGER.error(
+                "Transponder response missing <control> element; cannot parse ports/version"
+            )
+            return
+
+        try:
+            elem = ctrl.find("version")
+            if elem is not None and elem.text:
+                try:
+                    self._proto_ver = float(elem.text)
+                except Exception:
+                    _LOGGER.debug(
+                        "Invalid protocol version in transponder: %s", elem.text
+                    )
+        except Exception:
+            _LOGGER.debug("Error reading version from transponder")
+
+        def _safe_int_from_ctrl(tag_name):
+            try:
+                el = ctrl.find(tag_name)
+                if el is not None and el.text:
+                    return int(el.text)
+            except Exception:
+                _LOGGER.debug("Invalid integer for %s in transponder", tag_name)
+            return None
+
+        _val = _safe_int_from_ctrl("controlPort")
+        if _val is not None:
+            self._ctrl_port = _val
+        _val = _safe_int_from_ctrl("notifyPort")
+        if _val is not None:
+            self._notify_port = _val
+        _val = _safe_int_from_ctrl("infoPort")
+        if _val is not None:
+            self._info_port = _val
+        _val = _safe_int_from_ctrl("setupPortTCP")
+        if _val is not None:
+            self._setup_port_tcp = _val
 
     def _handle_status(self, resp):
         _LOGGER.debug("_handle_status called")
@@ -664,10 +782,11 @@ class Emotiva(object):
         req_sock.bind(("", 0))
         req_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
+        # use empty list for no elements (don't pass a mutable default)
         req = cls.format_request(
             "emotivaPing",
-            {},
-            {"protocol": "3.0"} if version == 3.0 else {},
+            [],
+            {"protocol": "3.0"} if version == 3.0 else None,
         )
 
         _LOGGER.debug("discover Broadcast Req: %s", req)
@@ -702,19 +821,43 @@ class Emotiva(object):
         return root
 
     @classmethod
-    def format_request(cls, pkt_type, req={}, pkt_attrs={}):
+    def format_request(cls, pkt_type, req=None, pkt_attrs=None):
         """
-        req is a list of 2-element tuples with first element being the command,
-        and second being a dict of parameters. E.g.
-        ('power_on', {'value': "0"})
+        Build an XML request packet.
 
-        pkt_attrs is a dictionary containing element attributes. E.g.
-        {'protocol': "3.0"}
+        - `req` should be a list/tuple of 2-element tuples: (command, params_dict).
+          If `None`, it becomes an empty list. If a mapping is passed, it's
+          converted to list(mapping.items()). Empty mapping becomes an empty
+          request list.
+        - `pkt_attrs` should be a dict of attributes for the root element; if
+          `None` it's treated as an empty dict.
         """
+        if req is None:
+            req = []
+        elif isinstance(req, dict):
+            # convert mapping->list of (cmd, params) if non-empty, else empty
+            req = list(req.items()) if req else []
+        elif not isinstance(req, (list, tuple)):
+            raise TypeError("req must be a list/tuple of (cmd, params) or None")
+
+        if pkt_attrs is None:
+            pkt_attrs = {}
+        elif not isinstance(pkt_attrs, dict):
+            raise TypeError("pkt_attrs must be a dict or None")
+
         output = cls.XML_HEADER
         builder = etree.TreeBuilder()
         builder.start(pkt_type, pkt_attrs)
-        for cmd, params in req:
+        for item in req:
+            try:
+                cmd, params = item
+            except Exception:
+                raise TypeError("each req item must be a (cmd, params) pair")
+            if params is None:
+                params = {}
+            elif not isinstance(params, dict):
+                # coerce simple values to string param
+                params = {"value": str(params)}
             builder.start(cmd, params)
             builder.end(cmd)
         builder.end(pkt_type)

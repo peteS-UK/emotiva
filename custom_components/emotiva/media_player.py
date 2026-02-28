@@ -98,7 +98,7 @@ class EmotivaDevice(MediaPlayerEntity):
         ).replace(":", "_")
         self._device_class = "receiver"
         # self._notifier_task = None
-        self._record_atrributes = {
+        self._record_attributes = {
             "audio_input",
             "mode",
             "volume",
@@ -142,11 +142,38 @@ class EmotivaDevice(MediaPlayerEntity):
 
         await self._device.unregister_from_notifier()
 
+        # Stop ping watcher: signal service then cancel and await background task
+        ping_await_timeout = 5
         try:
-            await self._device.stop_ping_watcher()
-            self._ping_task.cancel()
+            # Signal the service to stop (idempotent)
+            try:
+                await asyncio.wait_for(
+                    self._device.stop_ping_watcher(), timeout=ping_await_timeout
+                )
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Timeout while signalling ping watcher to stop")
+            except Exception:
+                _LOGGER.exception("Error signalling ping watcher to stop")
+
+            # Cancel background task and await completion with timeout
+            if getattr(self, "_ping_task", None) is not None:
+                try:
+                    self._ping_task.cancel()
+                except Exception:
+                    _LOGGER.debug("Error cancelling ping task")
+
+                try:
+                    await asyncio.wait_for(self._ping_task, timeout=ping_await_timeout)
+                except asyncio.TimeoutError:
+                    _LOGGER.error("Timeout while awaiting ping task cancellation")
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    _LOGGER.exception("Error awaiting ping task")
+                finally:
+                    self._ping_task = None
         except Exception:
-            pass
+            _LOGGER.exception("Unexpected error stopping ping watcher")
 
     @property
     def should_poll(self):
