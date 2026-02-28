@@ -124,12 +124,12 @@ async def async_setup_entry(
 
         _local_ip = await async_get_source_ip(hass)
 
-        notifiers.subscription_task = hass.async_create_background_task(
+        notifiers.subscription.task = hass.async_create_background_task(
             notifiers.subscription.async_start(_local_ip, _notify_port),
             name="emotiva subscription notifier task",
         )
 
-        notifiers.command_task = hass.async_create_background_task(
+        notifiers.command.task = hass.async_create_background_task(
             notifiers.command.async_start(_local_ip, _control_port),
             name="emotiva command notifier task",
         )
@@ -192,24 +192,22 @@ async def async_unload_entry(
             _LOGGER.debug("Unloading Listeners")
             _notifiers = hass.data[DOMAIN].get("notifiers")
             if _notifiers is not None:
-                # Cancel background tasks first to wake any blocked recv()
                 for notifier_name in ("subscription", "command"):
                     notifier = getattr(_notifiers, notifier_name, None)
                     if notifier is None:
                         continue
                     try:
                         notifier.stop()
+                        _LOGGER.debug("Cancelling task %s", notifier_name)
+                        if notifier.task is not None:
+                            notifier.task.cancel()
+                            try:
+                                await notifier.task
+                            except asyncio.CancelledError:
+                                _LOGGER.debug("Task %s cancelled", notifier_name)
+                            notifier.task = None
                     except Exception:
                         _LOGGER.exception("Error stopping notifier %s", notifier_name)
-                for notifier_task_name in ("subscription_task", "command_task"):
-                    notifier_task = getattr(_notifiers, notifier_task_name, None)
-                    if notifier_task is not None and not notifier_task.done():
-                        _LOGGER.debug("Cancelling task %s", notifier_task_name)
-                        notifier_task.cancel()
-                        try:
-                            await notifier_task
-                        except asyncio.CancelledError:
-                            _LOGGER.debug("Task %s cancelled", notifier_task_name)
 
             del hass.data[DOMAIN]["notifiers"]
 

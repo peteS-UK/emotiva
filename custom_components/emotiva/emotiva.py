@@ -93,6 +93,7 @@ class EmotivaNotifier(object):
         # runtime control
         self._running = False
         self._stream = None
+        self.task: asyncio.Task = None
 
     async def async_start(self, local_ip, local_port):
         self._running = True
