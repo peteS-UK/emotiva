@@ -85,18 +85,12 @@ class PingWatcherService:
         self._stop = True
 
 
-class EmotivaNotifiers(object):
-    subscription: object
-    subscription_task: object
-    command: object
-    command_task: object
-
-
 class EmotivaNotifier(object):
     def __init__(self):
         self._devs = {}
 
     async def _async_start(self, local_ip, local_port):
+        stream: asyncio_datagram.DatagramServer = None
         _LOGGER.debug("Starting Listener on %s:%d", local_ip, local_port)
         try:
             stream = await asyncio_datagram.bind((local_ip, local_port))
@@ -135,6 +129,13 @@ class EmotivaNotifier(object):
 
     async def _async_unregister(self, remote_ip):
         del self._devs[remote_ip]
+
+
+class EmotivaNotifiers(object):
+    subscription: EmotivaNotifier
+    subscription_task: EmotivaNotifier
+    command: EmotivaNotifier
+    command_task: EmotivaNotifier
 
 
 class Emotiva(object):
@@ -186,8 +187,8 @@ class Emotiva(object):
         self._volume_max = 11
         self._volume_min = -96
         self._volume_range = self._volume_max - self._volume_min
-        self._ctrl_sock = None
-        self._udp_stream = None
+        self._ctrl_sock
+        self._udp_stream
         self._update_cb = None
         self._remote_update_cb = None
         self._sensor_update_cb = {}
@@ -325,7 +326,9 @@ class Emotiva(object):
         self._events = events
 
         # current state
-        self._current_state = dict(((ev, None) for ev in self._events))
+        self._current_state: dict[str, str | None] = dict(
+            ((ev, None) for ev in self._events)
+        )
         self._current_state.update(dict(((m[1], None) for m in self._modes.values())))
         # Add states for the initial music modes
         self._current_state.update(
@@ -511,7 +514,7 @@ class Emotiva(object):
         except Exception:
             try:
                 _LOGGER.debug("Connection lost.  Attepting to reconnect")
-                self.udp_connect()
+                await self.udp_connect()
                 await self._udp_stream.send(req)
 
             except IOError as e:
