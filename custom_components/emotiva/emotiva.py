@@ -133,9 +133,9 @@ class EmotivaNotifier(object):
 
 class EmotivaNotifiers(object):
     subscription: EmotivaNotifier
-    subscription_task: EmotivaNotifier
+    subscription_task: asyncio.Task
     command: EmotivaNotifier
-    command_task: EmotivaNotifier
+    command_task: asyncio.Task
 
 
 class Emotiva(object):
@@ -187,10 +187,10 @@ class Emotiva(object):
         self._volume_max = 11
         self._volume_min = -96
         self._volume_range = self._volume_max - self._volume_min
-        self._ctrl_sock
         self._udp_stream
         self._update_cb = None
         self._remote_update_cb = None
+        self._select_update_cb = None
         self._sensor_update_cb = {}
         self._all_events = set(
             [
@@ -395,11 +395,6 @@ class Emotiva(object):
         _LOGGER.debug("Local IP: %s", self._hass.config.api.local_ip)
         return self._hass.config.api.local_ip
 
-    def connect(self):
-        self._ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._ctrl_sock.bind(("", self._ctrl_port))
-        self._ctrl_sock.settimeout(0.5)
-
     async def register_with_notifier(self):
         await self._notifiers.subscription._async_register(
             self._notify_handler, self._ip
@@ -468,9 +463,6 @@ class Emotiva(object):
             "video_space",
         ]
         await self._update_events(events)
-
-    def disconnect(self):
-        self._ctrl_sock.close()
 
     async def async_update_status(self, events):
         await self._update_events(events)
