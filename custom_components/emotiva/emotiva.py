@@ -11,7 +11,7 @@ from asyncping3 import ping
 from .const import CONF_PING_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
-UDP_OP_TIMEOUT = 5
+UDP_OP_TIMEOUT = 1
 
 
 class Error(Exception):
@@ -87,15 +87,14 @@ class PingWatcherService:
 
 
 class EmotivaNotifier(object):
-    def __init__(self):
+    def __init__(self, notifier_name=""):
         self._devs = {}
+        self._notifier_name = notifier_name
         # runtime control
         self._running = False
         self._stream = None
-        # background task reference (set by caller)
-        self._task = None
 
-    async def _async_start(self, local_ip, local_port):
+    async def async_start(self, local_ip, local_port):
         self._running = True
         stream: asyncio_datagram.DatagramServer = None
         _LOGGER.debug("Starting Listener on %s:%d", local_ip, local_port)
@@ -103,15 +102,19 @@ class EmotivaNotifier(object):
             stream = await asyncio_datagram.bind((local_ip, local_port))
         except IOError as e:
             _LOGGER.critical(
-                "Cannot bind to local socket (%s:%s) %d: %s",
+                "Cannot bind to local socket (%s:%s) %d: %s for listener %s",
                 local_ip,
                 local_port,
                 e.errno,
                 e.strerror,
+                self._notifier_name,
             )
         except Exception:
             _LOGGER.critical(
-                "Unknown error on binding to local socket %s", sys.exc_info()[0]
+                "Unknown error on binding to local socket %s for listener %s: %s",
+                local_ip,
+                self._notifier_name,
+                sys.exc_info()[0],
             )
 
         self._stream = stream
@@ -120,8 +123,8 @@ class EmotivaNotifier(object):
             while self._running and self._stream is not None:
                 try:
                     data, remote_addr = await self._stream.recv()
-                except (asyncio.CancelledError, OSError) as exc:
-                    _LOGGER.debug("Listener recv stopped: %s", exc)
+                except OSError as exc:
+                    _LOGGER.debug("Listener %s exception: %s", self._notifier_name, exc)
                     break
 
                 if not data or not remote_addr:
@@ -130,7 +133,8 @@ class EmotivaNotifier(object):
 
                 host = remote_addr[0]
                 _LOGGER.debug(
-                    "Received notification from %s\n%s",
+                    "Received notification for listener %s from %s\n%s",
+                    self._notifier_name,
                     host,
                     data.decode() if isinstance(data, bytes) else data,
                 )
@@ -150,51 +154,46 @@ class EmotivaNotifier(object):
                 if self._stream is not None:
                     close = getattr(self._stream, "close", None)
                     if callable(close):
+                        _LOGGER.debug(
+                            "Closing stream for listener %s",
+                            self._notifier_name,
+                        )
                         close()
-                    wait_closed = getattr(self._stream, "wait_closed", None)
-                    if callable(wait_closed):
-                        await wait_closed()
             except Exception:
-                _LOGGER.debug("Error closing stream: %s", sys.exc_info()[0])
+                _LOGGER.debug(
+                    "Error closing stream: %s for listener %s",
+                    sys.exc_info()[0],
+                    self._notifier_name,
+                )
             self._stream = None
             self._running = False
-            _LOGGER.debug("Listener stopped")
+            _LOGGER.debug("Listener %s stream stopped", self._notifier_name)
 
     async def _async_register(self, callback, remote_ip):
-        _LOGGER.debug("Registering %s with listener", remote_ip)
+        _LOGGER.debug("Registering %s with listener %s", remote_ip, self._notifier_name)
 
         if remote_ip not in self._devs:
             self._devs[remote_ip] = callback
 
-    async def _async_stop(self):
-        _LOGGER.debug("Stopping listener")
+    def stop(self):
+        _LOGGER.debug("Stopping listener %s", self._notifier_name)
         self._running = False
-        stream = self._stream
-        if stream is None:
-            return
-        try:
-            close = getattr(stream, "close", None)
-            if callable(close):
-                close()
-            wait_closed = getattr(stream, "wait_closed", None)
-            if callable(wait_closed):
-                await wait_closed()
-        except Exception:
-            _LOGGER.exception("Error while stopping listener")
-        finally:
-            self._stream = None
 
     async def _async_unregister(self, remote_ip):
         if remote_ip in self._devs:
             del self._devs[remote_ip]
-            _LOGGER.debug("Unregistered %s from listener", remote_ip)
+            _LOGGER.debug(
+                "Unregistered %s from listener %s", remote_ip, self._notifier_name
+            )
         else:
             _LOGGER.debug("Attempted to unregister %s but not found", remote_ip)
 
 
 class EmotivaNotifiers(object):
     subscription: EmotivaNotifier
+    subscription_task: asyncio.Task
     command: EmotivaNotifier
+    command_task: asyncio.Task
 
 
 class Emotiva(object):
@@ -525,7 +524,9 @@ class Emotiva(object):
 
     async def udp_connect(self):
         try:
-
+            _LOGGER.debug(
+                "Connecting to control socket at %s:%d", self._ip, self._ctrl_port
+            )
             # Use a timeout because asyncio_datagram.connect has no built-in timeout
             self._udp_stream = await asyncio.wait_for(
                 asyncio_datagram.connect((self._ip, self._ctrl_port)),
@@ -533,7 +534,7 @@ class Emotiva(object):
             )
         except IOError as e:
             _LOGGER.critical(
-                "Cannot connect control listener socket %d: %s", e.errno, e.strerror
+                "Cannot connect control socket %d: %s", e.errno, e.strerror
             )
         except Exception:
             if isinstance(sys.exc_info()[1], asyncio.TimeoutError):
@@ -542,7 +543,7 @@ class Emotiva(object):
                 )
             else:
                 _LOGGER.critical(
-                    "Unknown error on control listener socket connection %s",
+                    "Unknown error on control socket connection %s",
                     sys.exc_info()[0],
                 )
             # Ensure no half-open stream
@@ -553,13 +554,13 @@ class Emotiva(object):
             self._udp_stream.close()
         except IOError as e:
             _LOGGER.critical(
-                "Cannot disconnect from control listener socket %d: %s",
+                "Cannot disconnect from control socket %d: %s",
                 e.errno,
                 e.strerror,
             )
         except Exception:
             _LOGGER.critical(
-                "Unknown error on control listener socket disconnection %s",
+                "Unknown error on control socket disconnection %s",
                 sys.exc_info()[0],
             )
 
