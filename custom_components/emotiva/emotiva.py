@@ -290,7 +290,7 @@ class Emotiva(object):
             self.__parse_transponder(transp_xml)
 
         if not self._ctrl_port or not self._notify_port:
-            raise InvalidTransponderResponseError("Coulnd't find ctrl/notify ports")
+            raise InvalidTransponderResponseError("Couldn't find ctrl/notify ports")
 
         self._stripped_model = (
             self._model.replace(" ", "").replace("-", "").replace("_", "").upper()[:4]
@@ -798,27 +798,32 @@ class Emotiva(object):
                 _resp_data, (ip, port) = resp_sock.recvfrom(4096)
 
                 resp = cls._parse_response(_resp_data)
+                if resp is None:
+                    _LOGGER.debug("Skipping malformed discovery response from %s", ip)
+                    continue
                 _LOGGER.debug("Parsed ping response %s", resp)
                 devices.append((ip, resp))
             except socket.timeout:
                 break
-        if len(devices) > 0:
-            # return devices[0]
-            return devices
-        else:
-            return None
+        # Always return a list of discovered devices. If none were found
+        # `devices` will be an empty list which callers can iterate safely.
+        return devices
 
     @classmethod
     def _parse_response(cls, data):
-        # _LOGGER.debug("parse_response: %s", data)
+        # Parse XML discovery responses; return None on failure so callers
+        # can skip malformed responses safely.
         try:
             parser = etree.XMLParser(ns_clean=True, recover=True)
             root = etree.XML(data, parser)
+            return root
         except etree.ParseError:
-            _LOGGER.error("Malformed XML")
-            _LOGGER.error(data)
-            root = ""
-        return root
+            _LOGGER.error("Malformed XML in discovery response")
+            _LOGGER.debug("Response data: %s", data)
+            return None
+        except Exception:
+            _LOGGER.exception("Unexpected error parsing discovery response")
+            return None
 
     @classmethod
     def format_request(cls, pkt_type, req=None, pkt_attrs=None):

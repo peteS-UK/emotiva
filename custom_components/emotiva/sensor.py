@@ -167,4 +167,21 @@ class EmotivaDevice(SensorEntity):
 
     @property
     def native_value(self):
-        return eval("self._device._current_state['" + self._sensor["state"] + "']")
+        key = self._sensor["state"]
+        state = self._device._current_state.get(key)
+        if state is None:
+            return None
+
+        # If this sensor represents a numeric value (volume uses dB / sound pressure),
+        # attempt to coerce to float and return None on parse failure.
+        if (
+            self._sensor.get("uom") is not None
+            or self._sensor.get("class") == SensorDeviceClass.SOUND_PRESSURE
+        ):
+            try:
+                return float(str(state).strip())
+            except (ValueError, TypeError):
+                return None
+
+        # Otherwise return the raw state value (string or other type)
+        return state
