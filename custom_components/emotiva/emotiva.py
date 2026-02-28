@@ -11,7 +11,6 @@ from asyncping3 import ping
 from .const import CONF_PING_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
-UDP_OP_TIMEOUT = 1
 
 
 class Error(Exception):
@@ -528,25 +527,21 @@ class Emotiva(object):
             _LOGGER.debug(
                 "Connecting to control socket at %s:%d", self._ip, self._ctrl_port
             )
-            # Use a timeout because asyncio_datagram.connect has no built-in timeout
-            self._udp_stream = await asyncio.wait_for(
-                asyncio_datagram.connect((self._ip, self._ctrl_port)),
-                timeout=UDP_OP_TIMEOUT,
+            self._udp_stream = await asyncio_datagram.connect(
+                (self._ip, self._ctrl_port)
             )
+
         except IOError as e:
             _LOGGER.critical(
                 "Cannot connect control socket %d: %s", e.errno, e.strerror
             )
+            self._udp_stream = None
+
         except Exception:
-            if isinstance(sys.exc_info()[1], asyncio.TimeoutError):
-                _LOGGER.critical(
-                    "Timeout while connecting to %s:%s", self._ip, self._ctrl_port
-                )
-            else:
-                _LOGGER.critical(
-                    "Unknown error on control socket connection %s",
-                    sys.exc_info()[0],
-                )
+            _LOGGER.critical(
+                "Unknown error on control socket connection %s",
+                sys.exc_info()[0],
+            )
             # Ensure no half-open stream
             self._udp_stream = None
 
@@ -580,30 +575,7 @@ class Emotiva(object):
             return
 
         try:
-            await asyncio.wait_for(self._udp_stream.send(req), timeout=UDP_OP_TIMEOUT)
-        except asyncio.TimeoutError:
-            _LOGGER.error("Timeout while sending UDP request; attempting reconnect")
-            try:
-                await self.udp_connect()
-                if self._udp_stream is None:
-                    _LOGGER.error("Reconnect failed after timeout, dropping request")
-                    self._resp = None
-                    return
-                await asyncio.wait_for(
-                    self._udp_stream.send(req), timeout=UDP_OP_TIMEOUT
-                )
-            except asyncio.TimeoutError:
-                _LOGGER.error("Timeout on resend after reconnect, dropping request")
-                self._resp = None
-                return
-            except IOError as e:
-                _LOGGER.critical(
-                    "Cannot reconnect to command socket %d: %s", e.errno, e.strerror
-                )
-            except Exception:
-                _LOGGER.critical(
-                    "Unknown error on command socket reconnection %s", sys.exc_info()[0]
-                )
+            await self._udp_stream.send(req)
         except Exception:
             try:
                 _LOGGER.debug("Connection lost. Attempting to reconnect")
@@ -612,9 +584,7 @@ class Emotiva(object):
                     _LOGGER.error("Reconnect failed, dropping request")
                     self._resp = None
                     return
-                await asyncio.wait_for(
-                    self._udp_stream.send(req), timeout=UDP_OP_TIMEOUT
-                )
+                await self._udp_stream.send(req)
             except Exception:
                 _LOGGER.critical(
                     "Error while attempting to resend after exception %s",
