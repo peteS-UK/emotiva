@@ -152,13 +152,11 @@ class EmotivaNotifier(object):
         finally:
             try:
                 if self._stream is not None:
-                    close = getattr(self._stream, "close", None)
-                    if callable(close):
-                        _LOGGER.debug(
-                            "Closing stream for listener %s",
-                            self._notifier_name,
-                        )
-                        close()
+                    _LOGGER.debug(
+                        "Closing stream for listener %s",
+                        self._notifier_name,
+                    )
+                    self._stream.close()
             except Exception:
                 _LOGGER.debug(
                     "Error closing stream: %s for listener %s",
