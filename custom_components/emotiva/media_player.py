@@ -108,6 +108,7 @@ class EmotivaDevice(MediaPlayerEntity):
             "audio_bitstream",
         }
         self._device.set_notifiers(notifiers)
+        self._ping_task: asyncio.Task | None = None
 
     async def async_added_to_hass(self):
         """Subscribe to device events."""
@@ -143,27 +144,23 @@ class EmotivaDevice(MediaPlayerEntity):
         await self._device.unregister_from_notifier()
 
         # Stop ping watcher: signal service then cancel and await background task
-        ping_await_timeout = 5
         try:
             # Signal the service to stop (idempotent)
             try:
-                await asyncio.wait_for(
-                    self._device.stop_ping_watcher(), timeout=ping_await_timeout
-                )
+                await self._device.stop_ping_watcher()
             except asyncio.TimeoutError:
                 _LOGGER.debug("Timeout while signalling ping watcher to stop")
             except Exception:
                 _LOGGER.exception("Error signalling ping watcher to stop")
 
             # Cancel background task and await completion with timeout
-            if getattr(self, "_ping_task", None) is not None:
+            if self._ping_task is not None:
                 try:
                     self._ping_task.cancel()
                 except Exception:
                     _LOGGER.debug("Error cancelling ping task")
-
                 try:
-                    await asyncio.wait_for(self._ping_task, timeout=ping_await_timeout)
+                    await self._ping_task
                 except asyncio.TimeoutError:
                     _LOGGER.error("Timeout while awaiting ping task cancellation")
                 except asyncio.CancelledError:

@@ -92,7 +92,7 @@ class EmotivaNotifier(object):
         # runtime control
         self._running = False
         self._stream = None
-        self.task: asyncio.Task = None
+        self.task: asyncio.Task | None = None
 
     async def async_start(self, local_ip, local_port):
         self._running = True
@@ -245,7 +245,7 @@ class Emotiva(object):
         self._volume_max = 11
         self._volume_min = -96
         self._volume_range = self._volume_max - self._volume_min
-        self._udp_stream = None
+        self._udp_stream: asyncio_datagram.DatagramClient | None = None
         self._update_cb = None
         self._remote_update_cb = None
         self._select_update_cb = None
@@ -547,7 +547,9 @@ class Emotiva(object):
 
     async def udp_disconnect(self):
         try:
-            self._udp_stream.close()
+            if self._udp_stream is not None:
+                _LOGGER.debug("Disconnecting from control socket")
+                self._udp_stream.close()
         except IOError as e:
             _LOGGER.critical(
                 "Cannot disconnect from control socket %d: %s",
