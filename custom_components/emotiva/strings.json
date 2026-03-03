@@ -21,6 +21,9 @@
         "description": "Enter the details for your processor.",
         "title": "Emotiva Processor"
       }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the Emotiva Processor. Please check the IP address and try again."
     }
   },
   "options": {

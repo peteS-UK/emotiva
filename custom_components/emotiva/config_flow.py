@@ -12,6 +12,9 @@ from .const import (
     CONF_PING_INTERVAL,
 )
 
+from asyncping3 import ping
+
+
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
 from homeassistant.core import callback
@@ -25,6 +28,13 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+)
+
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -82,7 +92,7 @@ EMO_OPTIONS_SCHEMA = vol.Schema(
 )
 
 
-class EmotivaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class EmotivaConfigFlow(ConfigFlow):
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
     async def async_step_user(self, user_input=None):
@@ -104,16 +114,28 @@ class EmotivaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_manual(self, user_input=None):
         """Invoked when a user initiates a flow via the user interface."""
+        errors = {}
         if user_input is not None:
-            # Input is valid, set data.
-            self.data = user_input
-            self.data[CONF_TYPE] = "Manual"
-            return self.async_create_entry(title="Emotiva Processor", data=self.data)
+            try:
+                await ping(user_input[CONF_HOST], timeout=1)
+            except Exception:
+                errors[CONF_HOST] = "cannot_connect"
+
+            if not errors:
+                # Input is valid, set data.
+                self.data = user_input
+                self.data[CONF_TYPE] = "Manual"
+                return self.async_create_entry(
+                    title=user_input[CONF_NAME], data=self.data
+                )
 
         # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
         return self.async_show_form(
             step_id="manual",
-            data_schema=EMO_MANUAL_SCHEMA,
+            data_schema=self.add_suggested_values_to_schema(
+                EMO_MANUAL_SCHEMA, user_input
+            ),
+            errors=errors,
         )
 
     @staticmethod
@@ -123,7 +145,7 @@ class EmotivaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return OptionsFlowHandler()
 
 
-class OptionsFlowHandler(config_entries.OptionsFlow):
+class OptionsFlowHandler(OptionsFlow):
     def __init__(self) -> None:
         """Initialize options flow."""
         # self.config_entry = config_entry
