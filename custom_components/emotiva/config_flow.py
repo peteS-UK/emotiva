@@ -134,14 +134,6 @@ class EmotivaConfigFlow(ConfigFlow):
 
     async def async_step_choose_device(self, user_input=None):
         """Handle multiple devices found."""
-        if not self.discovered_devices:
-            return self.async_show_form(
-                step_id="choose_device",
-                data_schema=None,
-                description_placeholders={
-                    "not_found": "No devices found. Please use manual configuration."
-                },
-            )
 
         if user_input is not None:
             for device in self.discovered_devices:
