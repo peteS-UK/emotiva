@@ -1,15 +1,37 @@
 {
   "title": "Emotiva Processor",
   "config": {
+    "progress": {
+      "start_discovery": "Attempting to discover new Emotiva processors\n\nThis will take about 5 seconds",
+      "title": "Processor discovery"
+    },
     "step": {
       "user": {
-        "data": {
-          "type": "Discover new processors or add manually",
-          "discover": "Search for Emotiva Processors during setup",
-          "manual": "Enter details manually below"
+        "menu_options": {
+          "start_discovery": "Discover processors automatically",
+          "manual": "Enter configuration manually"
         },
-        "description": "You can ask the setup to discover processors, or enter details manually for a processor",
         "title": "Emotiva Processor"
+      },
+      "discovery_failed": {
+        "description": "No processors were discovered on the network.",
+        "menu_options": {
+          "manual": "Enter configuration manually"
+        },
+        "title": "Discovery failed"
+      },
+      "start_discovery": {
+        "title": "Discovering Emotiva processors..."
+      },
+      "choose_device": {
+        "title": "Select a device",
+        "description": "The following devices were found on your network.",
+        "data": {
+          "device": "Device"
+        },
+        "description_placeholders": {
+          "not_found": "No devices found. Please use manual configuration."
+        }
       },
       "manual": {
         "data": {
@@ -23,7 +45,8 @@
       }
     },
     "error": {
-      "cannot_connect": "Unable to connect to the Emotiva Processor. Please check the IP address and try again."
+      "cannot_connect": "Unable to connect to the Emotiva Processor. Please check the IP address and try again.",
+      "already_configured": "This device is already configured."
     }
   },
   "options": {

@@ -37,21 +37,9 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 
-_LOGGER = logging.getLogger(__name__)
+import asyncio
 
-EMO_CONFIG_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_TYPE, default=True): SelectSelector(
-            SelectSelectorConfig(
-                mode=SelectSelectorMode.LIST,
-                options=[
-                    "Discover",
-                    "Manual",
-                ],
-            )
-        ),
-    }
-)
+_LOGGER = logging.getLogger(__name__)
 
 EMO_MANUAL_SCHEMA = vol.Schema(
     {
@@ -92,41 +80,115 @@ EMO_OPTIONS_SCHEMA = vol.Schema(
 )
 
 
+from .emotiva import Emotiva
+
+
+@config_entries.HANDLERS.register(DOMAIN)
 class EmotivaConfigFlow(ConfigFlow):
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
+    def __init__(self):
+        """Initialize the config flow."""
+        self.discovered_devices = []
+        self.discovery_task = None
+
+    async def _discover(self):
+        """Discover Emotiva devices."""
+        receivers = await self.hass.async_add_executor_job(Emotiva.discover, 3)
+        if receivers:
+            for ip, xml in receivers:
+                device = Emotiva(self.hass, None, ip, xml)
+                if device.name not in [d.name for d in self.discovered_devices]:
+                    self.discovered_devices.append(device)
+        await asyncio.sleep(2)
+
+    async def async_step_start_discovery(self, user_input=None):
+        """Start discovery."""
+        _LOGGER.debug("Starting discovery task")
+        if not self.discovery_task:
+            self.discovery_task = self.hass.async_create_task(self._discover())
+
+        if self.discovery_task.done():
+            self.discovery_task.cancel()
+            await self.discovery_task
+            self.discovery_task = None
+
+            return self.async_show_progress_done(
+                next_step_id=(
+                    "choose_device" if self.discovered_devices else "discovery_failed"
+                )
+            )
+
+        return self.async_show_progress(
+            step_id="start_discovery",
+            progress_action="start_discovery",
+            progress_task=self.discovery_task,
+        )
+
+    async def async_step_discovery_failed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle a failed discovery."""
+
+        return self.async_show_menu(step_id="discovery_failed", menu_options=["manual"])
+
+    async def async_step_choose_device(self, user_input=None):
+        """Handle multiple devices found."""
+        if not self.discovered_devices:
+            return self.async_show_form(
+                step_id="choose_device",
+                data_schema=None,
+                description_placeholders={
+                    "not_found": "No devices found. Please use manual configuration."
+                },
+            )
+
+        if user_input is not None:
+            for device in self.discovered_devices:
+                if device.name == user_input["device"]:
+                    await self.async_set_unique_id(
+                        f"emotiva_{device.address.replace('.', '_')}"
+                    )
+                    self._abort_if_unique_id_configured()
+                    data = {
+                        CONF_HOST: device.address,
+                        CONF_NAME: device.name,
+                        CONF_MODEL: device.model,
+                        CONF_PROTO_VER: device._proto_ver,
+                    }
+                    return self.async_create_entry(title=device.name, data=data)
+
+        device_names = [device.name for device in self.discovered_devices]
+        return self.async_show_form(
+            step_id="choose_device",
+            data_schema=vol.Schema({vol.Required("device"): vol.In(device_names)}),
+        )
+
     async def async_step_user(self, user_input=None):
         """Invoked when a user initiates a flow via the user interface."""
-        if user_input is not None:
-            if user_input[CONF_TYPE] == "Discover":
-                # Input is valid, set data.
-                self.data = user_input
-                return self.async_create_entry(
-                    title="Emotiva Processor", data=self.data
-                )
-            else:
-                return self.async_show_form(
-                    step_id="manual", data_schema=EMO_MANUAL_SCHEMA
-                )
-
-        # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
-        return self.async_show_form(step_id="user", data_schema=EMO_CONFIG_SCHEMA)
+        return self.async_show_menu(
+            step_id="user",
+            menu_options=["start_discovery", "manual"],
+        )
 
     async def async_step_manual(self, user_input=None):
         """Invoked when a user initiates a flow via the user interface."""
         errors = {}
         if user_input is not None:
             try:
-                await ping(user_input[CONF_HOST], timeout=1)
+                ping_result = await ping(user_input[CONF_HOST], timeout=1)
+                if ping_result is None:
+                    raise Exception(TimeoutError)
+                await self.async_set_unique_id(
+                    f"emotiva_{user_input[CONF_HOST].replace('.', '_')}"
+                )
+                self._abort_if_unique_id_configured()
             except Exception:
                 errors[CONF_HOST] = "cannot_connect"
 
             if not errors:
-                # Input is valid, set data.
-                self.data = user_input
-                self.data[CONF_TYPE] = "Manual"
                 return self.async_create_entry(
-                    title=user_input[CONF_NAME], data=self.data
+                    title=user_input[CONF_NAME], data=user_input
                 )
 
         # If there is no user input or there were errors, show the form again, including any errors that were found with the input.
