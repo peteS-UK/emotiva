@@ -90,7 +90,7 @@ class EmotivaConfigFlow(ConfigFlow):
     def __init__(self):
         """Initialize the config flow."""
         self.discovered_devices = []
-        self.discovery_task = None
+        self.discovery_task: asyncio.Task | None = None
 
     async def _discover(self):
         """Discover Emotiva devices."""
@@ -108,10 +108,15 @@ class EmotivaConfigFlow(ConfigFlow):
         if not self.discovery_task:
             self.discovery_task = self.hass.async_create_task(self._discover())
 
-        if self.discovery_task.done():
-            self.discovery_task.cancel()
-            await self.discovery_task
-            self.discovery_task = None
+        if self.discovery_task is not None and self.discovery_task.done():
+
+            if self.discovery_task is not None:
+                self.discovery_task.cancel()
+                try:
+                    await self.discovery_task
+                except asyncio.CancelledError:
+                    _LOGGER.debug("Discovery cancelled")
+                self.discovery_task = None
 
             return self.async_show_progress_done(
                 next_step_id=(
@@ -134,6 +139,14 @@ class EmotivaConfigFlow(ConfigFlow):
 
     async def async_step_choose_device(self, user_input=None):
         """Handle multiple devices found."""
+        if not self.discovered_devices:
+            return self.async_show_form(
+                step_id="choose_device",
+                data_schema=None,
+                description_placeholders={
+                    "not_found": "No devices found. Please use manual configuration."
+                },
+            )
 
         if user_input is not None:
             for device in self.discovered_devices:
