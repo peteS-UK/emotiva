@@ -82,7 +82,8 @@ EMO_OPTIONS_SCHEMA = vol.Schema(
 )
 
 
-class EmotivaConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+@config_entries.HANDLERS.register(DOMAIN)
+class EmotivaConfigFlow(config_entries.ConfigFlow):
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
 
     async def async_step_user(self, user_input=None):
