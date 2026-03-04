@@ -196,7 +196,7 @@ class Emotiva(object):
         self._volume_max = 11
         self._volume_min = -96
         self._volume_range = self._volume_max - self._volume_min
-        self._udp_stream
+        self._udp_stream: asyncio_datagram.DatagramClient | None = None
         self._update_cb = None
         self._remote_update_cb = None
         self._select_update_cb = None
@@ -496,7 +496,8 @@ class Emotiva(object):
 
     async def udp_disconnect(self):
         try:
-            self._udp_stream.close()
+            if self._udp_stream is not None:
+                self._udp_stream.close()
         except IOError as e:
             _LOGGER.critical(
                 "Cannot disconnect from control listener socket %d: %s",
@@ -511,12 +512,15 @@ class Emotiva(object):
 
     async def _udp_client(self, req, ack):
         try:
-            await self._udp_stream.send(req)
+            if self._udp_stream is not None:
+                await self.udp_connect()
+                await self._udp_stream.send(req)
         except Exception:
             try:
                 _LOGGER.debug("Connection lost.  Attepting to reconnect")
                 await self.udp_connect()
-                await self._udp_stream.send(req)
+                if self._udp_stream is not None:
+                    await self._udp_stream.send(req)
 
             except IOError as e:
                 _LOGGER.critical(
