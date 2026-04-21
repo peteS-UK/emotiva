@@ -609,7 +609,7 @@ class Emotiva(object):
 
     def __parse_transponder(self, transp_xml):
         # _LOGGER.debug("transp_xml %s", transp_xml)
-        if not transp_xml:
+        if transp_xml is None or len(transp_xml) == 0:
             _LOGGER.error("No transponder XML provided")
             return
 
