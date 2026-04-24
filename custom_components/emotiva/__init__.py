@@ -9,6 +9,7 @@ NOTIFIER_TASK_AWAIT_TIMEOUT = 5
 from homeassistant import config_entries, core
 from homeassistant.components.network import async_get_source_ip
 from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, Platform
+from homeassistant.exceptions import ConfigEntryError
 
 from .const import (
     CONF_CTRL_PORT,
@@ -33,6 +34,11 @@ async def async_setup_entry(
     """Set up platform from a ConfigEntry."""
     hass.data.setdefault(DOMAIN, {})
     hass_data = dict(entry.data)
+
+    if hass_data.get("type") == "Discover":
+        raise ConfigEntryError(
+            "Discovery entry found.  This entry type is no longer supported.  Please backup, remove the entry and re-add your device."
+        )
 
     device = Emotiva(
         hass,
@@ -78,12 +84,13 @@ async def async_setup_entry(
             )
             hass.data[DOMAIN]["notifiers"] = notifiers
         else:
-            _LOGGER.error("Could not determine notifier ports. Notifications will not work.")
+            _LOGGER.error(
+                "Could not determine notifier ports. Notifications will not work."
+            )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
-
 
 
 def _update_extra_notifications(device, notifications):
