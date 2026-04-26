@@ -29,7 +29,9 @@ PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE, Platform.SELECT, Platform.S
 
 async def async_migrate_entry(hass, config_entry):
     """Migrate old entry."""
-    _LOGGER.debug("Migrating from version %s", config_entry.version)
+    _LOGGER.critical("Migrating from version %s", config_entry.version)
+
+    _LOGGER.critical("Migrating data %s", config_entry.data)
 
     if config_entry.version < 2:
         new_data = dict(config_entry.data)
@@ -37,6 +39,8 @@ async def async_migrate_entry(hass, config_entry):
 
         if new_data.get(CONF_TYPE) == "Discover" or new_data.get(CONF_DISCOVER, None):
             receivers = await hass.async_add_executor_job(Emotiva.discover, 3)
+
+            _LOGGER.critical("Receivers %s", receivers)
 
             if receivers:
                 _ip, _xml = receivers[0]
@@ -49,6 +53,8 @@ async def async_migrate_entry(hass, config_entry):
                     CONF_MODEL: device.model,
                     CONF_PROTO_VER: device._proto_ver,
                 }
+
+                _LOGGER.critical("New Data %s", new_data)
 
                 hass.config_entries.async_update_entry(
                     config_entry,
@@ -84,11 +90,6 @@ async def async_setup_entry(
     """Set up platform from a ConfigEntry."""
     hass.data.setdefault(DOMAIN, {})
     hass_data = dict(entry.data)
-
-    if hass_data.get("type") == "Discover":
-        raise ConfigEntryError(
-            "Discovery entry found.  This entry type is no longer supported.  Please backup, remove the entry and re-add your device."
-        )
 
     device = Emotiva(
         hass,
