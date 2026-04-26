@@ -7,7 +7,6 @@ import asyncio
 from homeassistant import config_entries, core
 from homeassistant.components.network import async_get_source_ip
 from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, Platform
-from homeassistant.exceptions import ConfigEntryError
 
 from .const import (
     CONF_CTRL_PORT,
@@ -29,9 +28,9 @@ PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE, Platform.SELECT, Platform.S
 
 async def async_migrate_entry(hass, config_entry):
     """Migrate old entry."""
-    _LOGGER.critical("Migrating from version %s", config_entry.version)
-
-    _LOGGER.critical("Migrating data %s", config_entry.data)
+    _LOGGER.debug(
+        "Migrating entry %d from version %s", config_entry.data, config_entry.version
+    )
 
     if config_entry.version < 2:
         new_data = dict(config_entry.data)
@@ -39,8 +38,6 @@ async def async_migrate_entry(hass, config_entry):
 
         if new_data.get(CONF_TYPE) == "Discover" or new_data.get(CONF_DISCOVER, None):
             receivers = await hass.async_add_executor_job(Emotiva.discover, 3)
-
-            _LOGGER.critical("Receivers %s", receivers)
 
             if receivers:
                 _ip, _xml = receivers[0]
@@ -54,8 +51,6 @@ async def async_migrate_entry(hass, config_entry):
                     CONF_PROTO_VER: device._proto_ver,
                 }
 
-                _LOGGER.critical("New Data %s", new_data)
-
                 hass.config_entries.async_update_entry(
                     config_entry,
                     title=device.name,
@@ -66,12 +61,10 @@ async def async_migrate_entry(hass, config_entry):
 
             else:
                 _LOGGER.error(
-                    "No Emotiva devices found during migration.  Please ensure your device is powered on and connected to the network, then reload the integration and try again."
+                    "No Emotiva devices found during config entry migration.  Please ensure your device is powered on and connected to the network, then reload the integration and try again."
                 )
-                return False
 
         else:
-            _LOGGER.critical("Updating Manual Entry %s", new_data)
             new_data.pop(CONF_TYPE, None)
             hass.config_entries.async_update_entry(
                 config_entry,
