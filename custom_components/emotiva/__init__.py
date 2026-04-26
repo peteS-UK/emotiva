@@ -25,6 +25,27 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE, Platform.SELECT, Platform.SENSOR]
 
 
+async def async_migrate_entry(hass, config_entry):
+    """Migrate old entry."""
+    _LOGGER.debug("Migrating from version %s", config_entry.version)
+
+    if config_entry.version == 1:
+        new_data = dict(config_entry.data)
+
+        # Add your new required info
+        new_data["new_feature_key"] = "default_value"
+
+        # Modify existing keys if necessary
+        if "old_key" in new_data:
+            new_data["renamed_key"] = new_data.pop("old_key")
+
+        # Update the entry in Home Assistant's internal storage
+        hass.config_entries.async_update_entry(config_entry, data=new_data, version=2)
+
+    _LOGGER.info("Migration to version %s successful", config_entry.version)
+    return True
+
+
 async def async_setup_entry(
     hass: core.HomeAssistant, entry: config_entries.ConfigEntry
 ) -> bool:
