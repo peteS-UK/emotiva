@@ -14,6 +14,8 @@ from .const import (
     CONF_NOTIFICATIONS,
     CONF_NOTIFY_PORT,
     CONF_PROTO_VER,
+    CONF_DISCOVER,
+    CONF_TYPE,
     DEFAULT_CTRL_PORT,
     DEFAULT_NOTIFY_PORT,
     DOMAIN,
@@ -29,20 +31,50 @@ async def async_migrate_entry(hass, config_entry):
     """Migrate old entry."""
     _LOGGER.debug("Migrating from version %s", config_entry.version)
 
-    if config_entry.version == 1:
+    if config_entry.version < 2:
         new_data = dict(config_entry.data)
+        host = new_data.get(CONF_HOST, "")
 
-        # Add your new required info
-        new_data["new_feature_key"] = "default_value"
+        if new_data.get(CONF_TYPE) == "Discover" or new_data.get(CONF_DISCOVER, None):
+            receivers = await hass.async_add_executor_job(Emotiva.discover, 3)
 
-        # Modify existing keys if necessary
-        if "old_key" in new_data:
-            new_data["renamed_key"] = new_data.pop("old_key")
+            if receivers:
+                _ip, _xml = receivers[0]
 
-        # Update the entry in Home Assistant's internal storage
-        hass.config_entries.async_update_entry(config_entry, data=new_data, version=2)
+                device = Emotiva(hass, None, host, _xml)
 
-    _LOGGER.info("Migration to version %s successful", config_entry.version)
+                new_data = {
+                    CONF_HOST: device.address,
+                    CONF_NAME: device.name,
+                    CONF_MODEL: device.model,
+                    CONF_PROTO_VER: device._proto_ver,
+                }
+
+                hass.config_entries.async_update_entry(
+                    config_entry,
+                    title=device.name,
+                    data=new_data,
+                    unique_id=f"emotiva_{device.address.replace('.', '_')}",
+                    version=2,
+                )
+
+            else:
+                _LOGGER.error(
+                    "No Emotiva devices found during migration.  Please ensure your device is powered on and connected to the network, then reload the integration and try again."
+                )
+                return False
+
+        else:
+            new_data.pop(CONF_TYPE, None)
+            hass.config_entries.async_update_entry(
+                config_entry,
+                data=new_data,
+                unique_id=f"emotiva_{host.replace('.', '_')}",
+                version=2,
+            )
+
+        _LOGGER.info("Migration to version %s successful", config_entry.version)
+
     return True
 
 
