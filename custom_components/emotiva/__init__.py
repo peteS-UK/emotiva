@@ -3,8 +3,6 @@
 import logging
 import asyncio
 
-# How long to wait for notifier tasks to finish after cancellation
-NOTIFIER_TASK_AWAIT_TIMEOUT = 5
 
 from homeassistant import config_entries, core
 from homeassistant.components.network import async_get_source_ip
@@ -21,7 +19,6 @@ from .const import (
     DOMAIN,
 )
 from .emotiva import Emotiva, EmotivaNotifiers, EmotivaNotifier
-
 
 _LOGGER = logging.getLogger(__name__)
 

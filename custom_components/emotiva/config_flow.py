@@ -1,43 +1,36 @@
+import asyncio
 import logging
-
 from typing import Any
 
-import voluptuous as vol
-
-from .const import (
-    DOMAIN,
-    CONF_NOTIFICATIONS,
-    CONF_PROTO_VER,
-    CONF_TYPE,
-    CONF_PING_INTERVAL,
-)
-
-from asyncping3 import ping
-
-
-from homeassistant import config_entries
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_MODEL
-from homeassistant.core import callback
-
 import homeassistant.helpers.config_validation as cv
-
-from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-    SelectSelectorMode,
-    NumberSelector,
-    NumberSelectorConfig,
-    NumberSelectorMode,
-)
-
+import voluptuous as vol
+from asyncping3 import ping
+from homeassistant import config_entries
 from homeassistant.config_entries import (
-    ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
 )
+from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME
+from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
-import asyncio
+from .const import (
+    CONF_NOTIFICATIONS,
+    CONF_PING_INTERVAL,
+    CONF_PROTO_VER,
+    DOMAIN,
+    CONFIG_ENTRY_OPTIONS_VERSION,
+    CONFIG_ENTRY_VERSION,
+)
+from .emotiva import Emotiva
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,12 +73,10 @@ EMO_OPTIONS_SCHEMA = vol.Schema(
 )
 
 
-from .emotiva import Emotiva
-
-
 @config_entries.HANDLERS.register(DOMAIN)
 class EmotivaConfigFlow(ConfigFlow):
     CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
+    VERSION = CONFIG_ENTRY_VERSION
 
     def __init__(self):
         """Initialize the config flow."""
@@ -109,7 +100,6 @@ class EmotivaConfigFlow(ConfigFlow):
             self.discovery_task = self.hass.async_create_task(self._discover())
 
         if self.discovery_task is not None and self.discovery_task.done():
-
             if self.discovery_task is not None:
                 self.discovery_task.cancel()
                 try:
@@ -213,6 +203,9 @@ class EmotivaConfigFlow(ConfigFlow):
 
 
 class OptionsFlowHandler(OptionsFlow):
+
+    VERSION = CONFIG_ENTRY_OPTIONS_VERSION
+
     def __init__(self) -> None:
         """Initialize options flow."""
         # self.config_entry = config_entry

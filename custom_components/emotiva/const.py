@@ -12,3 +12,6 @@ CONF_PING_INTERVAL = "ping_interval"
 DOMAIN = "emotiva"
 DEFAULT_NAME = "Emotiva Processor"
 SERVICE_SEND_COMMAND = "send_command"
+
+CONFIG_ENTRY_VERSION = 2
+CONFIG_ENTRY_OPTIONS_VERSION = 1
