@@ -48,7 +48,7 @@ async def async_migrate_entry(hass, config_entry):
                 device = Emotiva(hass, None, host, _xml)
 
                 new_data = {
-                    CONF_HOST: device.address,
+                    CONF_HOST: _ip,
                     CONF_NAME: device.name,
                     CONF_MODEL: device.model,
                     CONF_PROTO_VER: device._proto_ver,
@@ -60,7 +60,7 @@ async def async_migrate_entry(hass, config_entry):
                     config_entry,
                     title=device.name,
                     data=new_data,
-                    unique_id=f"emotiva_{device.address.replace('.', '_')}",
+                    unique_id=f"emotiva_{_ip.replace('.', '_')}",
                     version=2,
                 )
 
@@ -71,6 +71,7 @@ async def async_migrate_entry(hass, config_entry):
                 return False
 
         else:
+            _LOGGER.critical("Updating Manual Entry %s", new_data)
             new_data.pop(CONF_TYPE, None)
             hass.config_entries.async_update_entry(
                 config_entry,
