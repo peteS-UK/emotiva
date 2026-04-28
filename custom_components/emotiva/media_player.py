@@ -7,7 +7,6 @@ from .const import DOMAIN
 import voluptuous as vol
 
 from homeassistant.components.media_player import (
-    PLATFORM_SCHEMA,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
@@ -15,7 +14,6 @@ from homeassistant.components.media_player import (
 
 from homeassistant import config_entries, core
 
-from homeassistant.const import CONF_HOST, CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import (
     config_validation as cv,
@@ -25,10 +23,6 @@ from homeassistant.helpers import (
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import (
-    CONF_NOTIFICATIONS,
-    CONF_NOTIFY_PORT,
-    CONF_CTRL_PORT,
-    CONF_PROTO_VER,
     SERVICE_SEND_COMMAND,
 )
 
@@ -37,17 +31,6 @@ import asyncio
 
 _LOGGER = logging.getLogger(__name__)
 
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Optional(CONF_HOST): cv.string,
-        vol.Optional(CONF_NAME, default=None): cv.string,
-        vol.Optional(CONF_NOTIFICATIONS, default=None): cv.string,
-        vol.Optional(CONF_CTRL_PORT, default=7002): vol.Coerce(int),
-        vol.Optional(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int),
-        vol.Optional(CONF_PROTO_VER, default=3.0): vol.Coerce(float),
-    }
-)
 
 SUPPORT_EMOTIVA = (
     MediaPlayerEntityFeature.VOLUME_STEP

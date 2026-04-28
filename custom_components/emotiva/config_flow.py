@@ -27,12 +27,27 @@ from .const import (
     CONF_PING_INTERVAL,
     CONF_PROTO_VER,
     DOMAIN,
-    CONFIG_ENTRY_OPTIONS_VERSION,
     CONFIG_ENTRY_VERSION,
 )
 from .emotiva import Emotiva
 
 _LOGGER = logging.getLogger(__name__)
+
+EXTRA_NOTIFICATIONS = [
+    "dim",
+    "speaker_preset",
+    "center",
+    "subwoofer",
+    "surround",
+    "back",
+    "loudness",
+    "zone2_volume",
+    "zone2_input",
+    "tuner_channel",
+    "tuner_signal",
+    "tuner_program",
+    "tuner_RDS",
+]
 
 EMO_MANUAL_SCHEMA = vol.Schema(
     {
@@ -58,11 +73,14 @@ EMO_MANUAL_SCHEMA = vol.Schema(
 
 EMO_OPTIONS_SCHEMA = vol.Schema(
     {
-        vol.Optional(CONF_NOTIFICATIONS): cv.string,
-        vol.Optional(
-            "delete_existing",
-            default=False,
-        ): cv.boolean,
+        vol.Optional(CONF_NOTIFICATIONS): SelectSelector(
+            SelectSelectorConfig(
+                options=EXTRA_NOTIFICATIONS,
+                multiple=True,
+                custom_value=True,
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
         vol.Optional(CONF_PING_INTERVAL): vol.All(
             NumberSelector(
                 NumberSelectorConfig(min=0, max=600, mode=NumberSelectorMode.SLIDER)
@@ -204,8 +222,6 @@ class EmotivaConfigFlow(ConfigFlow):
 
 class OptionsFlowHandler(OptionsFlow):
 
-    VERSION = CONFIG_ENTRY_OPTIONS_VERSION
-
     def __init__(self) -> None:
         """Initialize options flow."""
         # self.config_entry = config_entry
@@ -215,9 +231,6 @@ class OptionsFlowHandler(OptionsFlow):
         """Manage the options."""
 
         if user_input is not None:
-            if user_input["delete_existing"]:
-                _LOGGER.debug("Deleting existing notification entry")
-                del user_input[CONF_NOTIFICATIONS]
             _LOGGER.debug("Returning %s", user_input)
             return self.async_create_entry(title="", data=user_input)
 
@@ -227,12 +240,11 @@ class OptionsFlowHandler(OptionsFlow):
                 EMO_OPTIONS_SCHEMA,
                 {
                     CONF_NOTIFICATIONS: self.config_entry.options.get(
-                        CONF_NOTIFICATIONS
+                        CONF_NOTIFICATIONS, []
                     ),
                     CONF_PING_INTERVAL: self.config_entry.options.get(
                         CONF_PING_INTERVAL, 60
                     ),
-                    "delete_existing": False,
                 },
             ),
         )

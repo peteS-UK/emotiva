@@ -38,7 +38,7 @@ class PingWatcherService:
 
     async def start(self):
         while not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 0)) == 0:
+            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 60)) == 0:
                 # Disable the listener
                 _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
                 self._stop = True

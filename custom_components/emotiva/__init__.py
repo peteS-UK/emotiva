@@ -34,7 +34,22 @@ async def async_migrate_entry(hass, config_entry):
 
     if config_entry.version < 2:
         new_data = dict(config_entry.data)
+        new_options = dict(config_entry.options)
+
         host = new_data.get(CONF_HOST, "")
+
+        old_notifications = new_options.get(CONF_NOTIFICATIONS)
+
+        if isinstance(old_notifications, str):
+            # Split by comma, strip whitespace, and filter out empty strings
+            new_options[CONF_NOTIFICATIONS] = [
+                x.strip() for x in old_notifications.split(",") if x.strip()
+            ]
+        elif old_notifications is None:
+            new_options[CONF_NOTIFICATIONS] = []
+
+        # Remove the "delete_existing" flag if it was previously saved in options
+        new_options.pop("delete_existing", None)
 
         if new_data.get(CONF_TYPE) == "Discover" or new_data.get(CONF_DISCOVER, None):
             receivers = await hass.async_add_executor_job(Emotiva.discover, 3)
@@ -57,6 +72,7 @@ async def async_migrate_entry(hass, config_entry):
                     data=new_data,
                     unique_id=f"emotiva_{_ip.replace('.', '_')}",
                     version=2,
+                    options=new_options,
                 )
 
             else:
@@ -71,6 +87,7 @@ async def async_migrate_entry(hass, config_entry):
                 data=new_data,
                 unique_id=f"emotiva_{host.replace('.', '_')}",
                 version=2,
+                options=new_options,
             )
 
         _LOGGER.info("Migration to version %s successful", config_entry.version)
@@ -139,14 +156,22 @@ async def async_setup_entry(
 
 
 def _update_extra_notifications(device, notifications):
-    if notifications is not None:
-        _LOGGER.debug("Adding %s to %s", notifications, device.name)
-        _notify_set = set(notifications.replace(" ", "").split(","))
-    else:
-        _notify_set = set()
+    """Update device notifications using the new list format."""
+    # Ensure we are working with a list (the migration guarantees this,
+    # but a default empty list is safe)
+    _notify_list = notifications or []
 
-    device._events = device._events.union(_notify_set)
-    device._current_state.update(dict((m, None) for m in _notify_set))
+    if _notify_list:
+        _LOGGER.debug("Adding %s to %s", _notify_list, device.name)
+
+        # Convert list to set for the union operation
+        _notify_set = set(_notify_list)
+
+        # Update events and state
+        device._events = device._events.union(_notify_set)
+        device._current_state.update({m: None for m in _notify_set})
+    else:
+        _LOGGER.debug("No extra notifications to add for %s", device.name)
 
 
 async def options_update_listener(
