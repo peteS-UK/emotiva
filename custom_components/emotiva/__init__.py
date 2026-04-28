@@ -28,9 +28,7 @@ PLATFORMS = [Platform.MEDIA_PLAYER, Platform.REMOTE, Platform.SELECT, Platform.S
 
 async def async_migrate_entry(hass, config_entry):
     """Migrate old entry."""
-    _LOGGER.debug(
-        "Migrating entry %d from version %s", config_entry.data, config_entry.version
-    )
+    _LOGGER.debug("Migrating entry from version %s", config_entry.version)
 
     if config_entry.version < 2:
         new_data = dict(config_entry.data)
