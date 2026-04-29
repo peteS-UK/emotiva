@@ -35,7 +35,6 @@ class PingWatcherService:
         self._config_entry = config_entry
         self._host = host
         self._stop = False
-        # This is the EmotivaDevice.set_online_state method
         self._on_state_change = on_state_change
 
     async def start(self):
@@ -48,7 +47,6 @@ class PingWatcherService:
             return
 
         try:
-            # --- PHASE 1: Standard Polling ---
             while not self._stop:
                 _ping = await ping(self._host, timeout=4)
                 if not _ping:
@@ -60,18 +58,14 @@ class PingWatcherService:
                 else:
                     break  # Device is down, move to recovery
 
-            # --- PHASE 2: Recovery Polling ---
             if not self._stop:
                 _LOGGER.error(
                     "Connectivity lost to %s. Marking unavailable.", self._host
                 )
 
-                # 🛑 Tell the device class we are offline.
-                # This instantly grays out the UI for all connected entities.
                 self._on_state_change(False)
 
             while not self._stop:
-                # Quick ping to check if it's back
                 if await ping(self._host, timeout=1):
                     _LOGGER.warning(
                         "Connectivity re-established with %s. Reloading configuration in 30s.",
@@ -86,7 +80,6 @@ class PingWatcherService:
                     _LOGGER.info("Configuration reloaded for %s.", self._host)
                     return
 
-                # Wait before pinging again
                 await asyncio.sleep(max(interval, 5))
 
         except asyncio.CancelledError:
@@ -105,7 +98,6 @@ class EmotivaNotifier(object):
     def __init__(self, notifier_name=""):
         self._devs = {}
         self._notifier_name = notifier_name
-        # runtime control
         self._running = False
         self._stream = None
         self.task: asyncio.Task | None = None
@@ -316,7 +308,6 @@ class Emotiva(object):
         )
         _LOGGER.debug("Stripped Model %s", self._stripped_model)
         match self._stripped_model:
-            # mode : command,mode_name_string, visible
             case "XMC1":
                 _LOGGER.debug("Sound Modes for XMC-1")
                 self._modes = {
@@ -397,7 +388,6 @@ class Emotiva(object):
 
         self._events = events
 
-        # current state
         self._current_state: dict[str, str | None] = dict(
             ((ev, None) for ev in self._events)
         )
@@ -492,7 +482,6 @@ class Emotiva(object):
             self._handle_status(resp)
 
         async def _update_sensors():
-            # await asyncio.sleep(1.0)
             await self._update_sensor_values()
 
         if "emotivaUpdate" not in _decoded_data and "audio_input" not in _decoded_data:
@@ -577,7 +566,6 @@ class Emotiva(object):
             )
 
     async def _udp_client(self, req):
-        # Ensure we have a connected udp stream; try to connect if missing
         if self._udp_stream is None:
             _LOGGER.debug("UDP stream not connected, attempting to connect")
             try:
@@ -624,7 +612,6 @@ class Emotiva(object):
         await self._async_send_request(msg, ack=True, process_response=False)
 
     def __parse_transponder(self, transp_xml):
-        # _LOGGER.debug("transp_xml %s", transp_xml)
         if transp_xml is None or len(transp_xml) == 0:
             _LOGGER.error("No transponder XML provided")
             return
@@ -692,15 +679,12 @@ class Emotiva(object):
         _LOGGER.debug("_handle_status called")
         for elem in resp:
             if elem.tag == "property":
-                # v3 protocol style response, convert it to v2 style
-                # _LOGGER.debug("Handling Protocol V3 xml")
                 elem.tag = elem.get("name")
             if elem.tag not in self._current_state:
                 _LOGGER.debug("Unknown element: %s" % elem.tag)
                 continue
             val = (elem.get("value") or "").strip()
             visible = (elem.get("visible") or "").strip()
-            # update mode status
             if elem.tag.startswith("mode_"):
                 for v in self._modes.items():
                     if v[1][1] == elem.tag and v[1][2] != visible:
@@ -709,7 +693,6 @@ class Emotiva(object):
                             " Changing visibility of %s to %s", elem.tag, visible
                         )
                         self._modes.update({v[0]: v[1]})
-            # do not
             if elem.tag.startswith("input_") and visible != "true":
                 continue
             if elem.tag == "volume":
@@ -717,7 +700,6 @@ class Emotiva(object):
                     self._muted = True
                     continue
                 self._muted = False
-                # fall through
             if val:
                 self._current_state[elem.tag] = val
             if elem.tag.startswith("input_"):
@@ -742,7 +724,6 @@ class Emotiva(object):
         """Called by PingWatcherService when device drops off/comes back."""
         if self.is_online != is_online:
             self.is_online = is_online
-            # Instantly update all connected entities (Media Player, Sensors, etc.)
             self._notify_entities()
 
     async def run_ping_watcher(self):
@@ -772,7 +753,6 @@ class Emotiva(object):
         req_sock.bind(("", 0))
         req_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
-        # use empty list for no elements (don't pass a mutable default)
         req = cls.format_request(
             "emotivaPing",
             [],
@@ -795,8 +775,6 @@ class Emotiva(object):
                 devices.append((ip, resp))
             except socket.timeout:
                 break
-        # Always return a list of discovered devices. If none were found
-        # `devices` will be an empty list which callers can iterate safely.
         return devices
 
     @classmethod
@@ -877,11 +855,6 @@ class Emotiva(object):
             return True
         return False
 
-    # @power.setter
-    # def power(self, onoff):
-    # 	cmd = {True: 'power_on', False: 'power_off'}[onoff]
-    # 	self._send_emotivacontrol(cmd,0)
-
     @property
     def volume_level(self):
         if self._current_state["volume"] is not None:
@@ -897,10 +870,6 @@ class Emotiva(object):
 
     def set_notifiers(self, notifiers):
         self._notifiers: EmotivaNotifiers = notifiers
-
-    # @volume.setter
-    # def volume(self, value):
-    # 	self._send_emotivacontrol('set_volume',value)
 
     async def _async_volume_step(self, incr):
         await self._async_send_emotivacontrol("volume", incr)
@@ -933,11 +902,6 @@ class Emotiva(object):
     @property
     def mute(self):
         return self._muted
-
-    # @mute.setter
-    # def mute(self, enable):
-    # 	mute_cmd = {True: 'mute_on', False: 'mute_off'}[enable]
-    # 	self._send_emotivacontrol(mute_cmd,0)
 
     @property
     def sources(self):

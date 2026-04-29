@@ -80,7 +80,6 @@ class EmotivaDevice(MediaPlayerEntity):
             "-", "_"
         ).replace(":", "_")
         self._device_class = "receiver"
-        # self._notifier_task = None
         self._record_attributes = {
             "audio_input",
             "mode",
@@ -127,9 +126,7 @@ class EmotivaDevice(MediaPlayerEntity):
 
         await self._device.unregister_from_notifier()
 
-        # Stop ping watcher: signal service then cancel and await background task
         try:
-            # Signal the service to stop (idempotent)
             try:
                 await self._device.stop_ping_watcher()
             except asyncio.TimeoutError:
@@ -137,7 +134,6 @@ class EmotivaDevice(MediaPlayerEntity):
             except Exception:
                 _LOGGER.exception("Error signalling ping watcher to stop")
 
-            # Cancel background task and await completion with timeout
             if self._ping_task is not None:
                 try:
                     self._ping_task.cancel()
@@ -163,7 +159,6 @@ class EmotivaDevice(MediaPlayerEntity):
     @property
     def available(self) -> bool:
         """Return True if the device is currently online and available."""
-        # We will add an 'is_online' flag to your device class
         return self._device.is_online
 
     @property
@@ -175,7 +170,6 @@ class EmotivaDevice(MediaPlayerEntity):
 
     @property
     def name(self):
-        # return self._device.name
         return None
 
     @property
@@ -186,10 +180,7 @@ class EmotivaDevice(MediaPlayerEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._unique_id)
-            },
+            identifiers={(DOMAIN, self._unique_id)},
             name=self._device.name,
             manufacturer="Emotiva",
             model=self._device.model,
@@ -309,9 +300,6 @@ class EmotivaDevice(MediaPlayerEntity):
 
     async def async_volume_down(self):
         await self._device.async_volume_down()
-
-    # def update(self):
-    # 	self._device._update_status(self._device._events, float(self._device._proto_ver))
 
     async def async_update(self):
         await self._device.async_update_status(self._device._events)
