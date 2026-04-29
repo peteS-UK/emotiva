@@ -59,13 +59,13 @@
     },
     "step": {
       "init": {
-        "title": "Additional Notifications",
+        "title": "Additional Notifications & Connectivity Check",
         "data": {
           "notifications": "Notifications to track",
-          "delete_existing": "Tick to remove existing additional notifications",
-          "ping_interval": "Number of seconds between connectivity check pings.  0 to disable"
+          "ping_watcher": "Periodic connectivity check pings to the processor",
+          "ping_interval": "Number of seconds between connectivity check pings"
         },
-        "description": "Add additional notifications to track as entity attributes"
+        "description": "Add additional notifications to track as entity attributes, and enable/disable periodic connectivity check pings to the processor. If enabled, the integration will ping the processor at the specified interval, and if it fails to respond, it will mark the entities as unavailable until it responds again."
       }
     }
   }

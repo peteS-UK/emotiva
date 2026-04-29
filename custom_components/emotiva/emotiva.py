@@ -78,9 +78,6 @@ class PingWatcherService:
                         self._host,
                     )
 
-                    # Note: We do NOT need to call self._on_state_change(True) here.
-                    # Because we are scheduling a reload, Home Assistant will destroy
-                    # the "Unavailable" entities and recreate them fresh and "Available" anyway!
                     await asyncio.sleep(30)
 
                     self._hass.config_entries.async_schedule_reload(
