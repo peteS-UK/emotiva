@@ -107,6 +107,9 @@ class EmotivaDevice(MediaPlayerEntity):
             await self._device.async_set_mode(self._device.mode)
         else:
             await self._device.async_set_mode("Stereo")
+
+        # Register a callback so the device can tell the entity to update the UI
+        self._device.register_callback(self.async_write_ha_state)
         self._ping_task = self._hass.async_create_background_task(
             self._device.run_ping_watcher(), name="emotiva ping watcher task"
         )
@@ -158,6 +161,12 @@ class EmotivaDevice(MediaPlayerEntity):
     @property
     def should_poll(self):
         return False
+
+    @property
+    def available(self) -> bool:
+        """Return True if the device is currently online and available."""
+        # We will add an 'is_online' flag to your device class
+        return self._device.is_online
 
     @property
     def icon(self):

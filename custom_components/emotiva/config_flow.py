@@ -24,6 +24,7 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_NOTIFICATIONS,
+    CONF_PING_ENABLED,
     CONF_PING_INTERVAL,
     CONF_PROTO_VER,
     DOMAIN,
@@ -81,9 +82,10 @@ EMO_OPTIONS_SCHEMA = vol.Schema(
                 mode=SelectSelectorMode.DROPDOWN,
             )
         ),
+        vol.Optional(CONF_PING_ENABLED, default=True): bool,
         vol.Optional(CONF_PING_INTERVAL): vol.All(
             NumberSelector(
-                NumberSelectorConfig(min=0, max=600, mode=NumberSelectorMode.SLIDER)
+                NumberSelectorConfig(min=1, max=600, mode=NumberSelectorMode.SLIDER)
             ),
             vol.Coerce(int),
         ),
@@ -244,6 +246,9 @@ class OptionsFlowHandler(OptionsFlow):
                     ),
                     CONF_PING_INTERVAL: self.config_entry.options.get(
                         CONF_PING_INTERVAL, 60
+                    ),
+                    CONF_PING_ENABLED: self.config_entry.options.get(
+                        CONF_PING_ENABLED, True
                     ),
                 },
             ),

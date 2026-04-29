@@ -10,6 +10,8 @@ from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, Platform
 
 from .const import (
     CONF_CTRL_PORT,
+    CONF_PING_ENABLED,
+    CONF_PING_INTERVAL,
     CONF_NOTIFICATIONS,
     CONF_NOTIFY_PORT,
     CONF_PROTO_VER,
@@ -37,6 +39,14 @@ async def async_migrate_entry(hass, config_entry):
         host = new_data.get(CONF_HOST, "")
 
         old_notifications = new_options.get(CONF_NOTIFICATIONS)
+        old_interval = int(new_options.get(CONF_PING_INTERVAL, 0))
+
+        if int(new_options.get(CONF_PING_INTERVAL, 0)) == 0:
+            new_options[CONF_PING_ENABLED] = False
+            new_options[CONF_PING_INTERVAL] = 60
+        else:
+            new_options[CONF_PING_ENABLED] = True
+            new_options[CONF_PING_INTERVAL] = old_interval
 
         if isinstance(old_notifications, str):
             # Split by comma, strip whitespace, and filter out empty strings

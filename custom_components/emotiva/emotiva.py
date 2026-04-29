@@ -8,7 +8,7 @@ import asyncio_datagram
 from lxml import etree
 from asyncping3 import ping
 
-from .const import CONF_PING_INTERVAL
+from .const import CONF_PING_INTERVAL, CONF_PING_ENABLED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,51 +37,70 @@ class PingWatcherService:
         self._stop = False
 
     async def start(self):
-        while not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 60)) == 0:
-                # Disable the listener
-                _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
-                self._stop = True
-                break
-            # Ping the AVR
-            _ping = await ping(self._host, timeout=4)
-            if not _ping:
-                # Pause and try again
-                await asyncio.sleep(2)
+        """Monitor connectivity and manage automatic reloads."""
+        try:
+            # --- PHASE 1: Standard Polling ---
+            while not self._stop:
+                # 1. Check the explicit toggle
+                is_enabled = self._config_entry.options.get(CONF_PING_ENABLED, True)
+                if not is_enabled:
+                    _LOGGER.info("Ping Watcher is disabled via configuration.")
+                    self._stop = True
+                    break
+
+                interval = int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+
+                # Ping the AVR
                 _ping = await ping(self._host, timeout=4)
-            if _ping:
-                # Ping succeeded - wait and retry
-                await asyncio.sleep(
-                    int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+                if not _ping:
+                    await asyncio.sleep(2)
+                    _ping = await ping(self._host, timeout=4)
+
+                if _ping:
+                    await asyncio.sleep(interval)
+                else:
+                    break
+
+            # --- PHASE 2: Recovery Polling ---
+            if not self._stop:
+                _LOGGER.error(
+                    "Connectivity lost to %s. Waiting for availability.", self._host
                 )
-            else:
-                # Both attempts failed, so break
-                break
-        # Ping failed, so wait until it succeeds again
-        if not self._stop:
-            _LOGGER.error(
-                "Connectivity lost to %s.  Waiting for availability.", self._host
+
+            while not self._stop:
+                is_enabled = self._config_entry.options.get(CONF_PING_ENABLED, True)
+                if not is_enabled:
+                    _LOGGER.info("Ping Watcher disabled during recovery.")
+                    self._stop = True
+                    break
+
+                interval = int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+
+                # Quick ping to check if it's back
+                if await ping(self._host, timeout=1):
+                    _LOGGER.warning(
+                        "Connectivity re-established with %s. Reloading configuration in 30s.",
+                        self._host,
+                    )
+                    await asyncio.sleep(30)
+
+                    self._hass.config_entries.async_schedule_reload(
+                        self._config_entry.entry_id
+                    )
+                    return
+
+                # Safety net: Ensure we wait at least 5 seconds between recovery pings
+                await asyncio.sleep(max(interval, 5))
+
+        except asyncio.CancelledError:
+            _LOGGER.debug("Ping watcher task cancelled for %s", self._host)
+        except Exception as err:
+            _LOGGER.exception(
+                "Unexpected error in Ping Watcher for %s: %s", self._host, err
             )
-        while not await ping(self._host, timeout=1) and not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL, 0)) == 0:
-                _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
-                # Disable the listener
-                self._stop = True
-                break
-            # Ping failed - wait and retry
-            await asyncio.sleep(
-                int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
-            )
-        # Ping succeeded, so it's back, so reload
-        if not self._stop:
-            _LOGGER.error(
-                "Connectivity re-established with %s.  Reloading configuration",
-                self._host,
-            )
-            await asyncio.sleep(30)
-            self._hass.config_entries.async_schedule_reload(self._config_entry.entry_id)
 
     async def stop(self):
+        """Signal the watcher loop to stop."""
         self._stop = True
 
 
