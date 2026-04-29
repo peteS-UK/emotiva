@@ -95,8 +95,6 @@ class EmotivaDevice(MediaPlayerEntity):
 
     async def async_added_to_hass(self):
         """Subscribe to device events."""
-        self._device.set_update_cb(self.async_update_callback)
-
         await self._device.register_with_notifier()
         await self._device.udp_connect()
         await self._device.async_subscribe_events()
@@ -123,7 +121,7 @@ class EmotivaDevice(MediaPlayerEntity):
     async def async_will_remove_from_hass(self) -> None:
         await self._device.async_unsubscribe_events()
 
-        self._device.set_update_cb(None)
+        self._device.remove_callback(self.async_write_ha_state)
 
         await self._device.udp_disconnect()
 

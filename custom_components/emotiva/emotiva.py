@@ -30,66 +30,66 @@ class InvalidModeError(Error):
 
 
 class PingWatcherService:
-    def __init__(self, hass, config_entry, host):
+    def __init__(self, hass, config_entry, host, on_state_change):
         self._hass = hass
         self._config_entry = config_entry
         self._host = host
         self._stop = False
+        # This is the EmotivaDevice.set_online_state method
+        self._on_state_change = on_state_change
 
     async def start(self):
         """Monitor connectivity and manage automatic reloads."""
+        is_enabled = self._config_entry.options.get(CONF_PING_ENABLED, True)
+        interval = int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+
+        if not is_enabled or interval <= 0:
+            _LOGGER.info("Ping Watcher is disabled for %s.", self._host)
+            return
+
         try:
             # --- PHASE 1: Standard Polling ---
             while not self._stop:
-                # 1. Check the explicit toggle
-                is_enabled = self._config_entry.options.get(CONF_PING_ENABLED, True)
-                if not is_enabled:
-                    _LOGGER.info("Ping Watcher is disabled via configuration.")
-                    self._stop = True
-                    break
-
-                interval = int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
-
-                # Ping the AVR
                 _ping = await ping(self._host, timeout=4)
                 if not _ping:
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(2)  # Quick retry
                     _ping = await ping(self._host, timeout=4)
 
                 if _ping:
                     await asyncio.sleep(interval)
                 else:
-                    break
+                    break  # Device is down, move to recovery
 
             # --- PHASE 2: Recovery Polling ---
             if not self._stop:
                 _LOGGER.error(
-                    "Connectivity lost to %s. Waiting for availability.", self._host
+                    "Connectivity lost to %s. Marking unavailable.", self._host
                 )
 
+                # 🛑 Tell the device class we are offline.
+                # This instantly grays out the UI for all connected entities.
+                self._on_state_change(False)
+
             while not self._stop:
-                is_enabled = self._config_entry.options.get(CONF_PING_ENABLED, True)
-                if not is_enabled:
-                    _LOGGER.info("Ping Watcher disabled during recovery.")
-                    self._stop = True
-                    break
-
-                interval = int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
-
                 # Quick ping to check if it's back
                 if await ping(self._host, timeout=1):
                     _LOGGER.warning(
                         "Connectivity re-established with %s. Reloading configuration in 30s.",
                         self._host,
                     )
+
+                    # Note: We do NOT need to call self._on_state_change(True) here.
+                    # Because we are scheduling a reload, Home Assistant will destroy
+                    # the "Unavailable" entities and recreate them fresh and "Available" anyway!
                     await asyncio.sleep(30)
 
                     self._hass.config_entries.async_schedule_reload(
                         self._config_entry.entry_id
                     )
+                    _LOGGER.info("Configuration reloaded for %s.", self._host)
                     return
 
-                # Safety net: Ensure we wait at least 5 seconds between recovery pings
+                # Wait before pinging again
                 await asyncio.sleep(max(interval, 5))
 
         except asyncio.CancelledError:
@@ -100,7 +100,7 @@ class PingWatcherService:
             )
 
     async def stop(self):
-        """Signal the watcher loop to stop."""
+        """Signal the watcher loop to stop cleanly."""
         self._stop = True
 
 
@@ -263,10 +263,8 @@ class Emotiva(object):
         self._volume_min = -96
         self._volume_range = self._volume_max - self._volume_min
         self._udp_stream: asyncio_datagram.DatagramClient | None = None
-        self._update_cb = None
-        self._remote_update_cb = None
-        self._select_update_cb = None
-        self._sensor_update_cb = {}
+        self._callbacks = set()
+        self.is_online = True
         self._all_events = set(
             [
                 "power",
@@ -306,7 +304,9 @@ class Emotiva(object):
                 "input_8",
             ]
         )
-        self.ping_watcher = PingWatcherService(self._hass, self._config_entry, ip)
+        self.ping_watcher = PingWatcherService(
+            self._hass, self._config_entry, ip, self.set_online_state
+        )
 
         if not self._ctrl_port or not self._notify_port:
             self.__parse_transponder(transp_xml)
@@ -726,31 +726,27 @@ class Emotiva(object):
             if elem.tag.startswith("input_"):
                 num = elem.tag[6:]
                 self._sources["source_" + num] = val
+        self._notify_entities()
 
-        if self._update_cb:
-            self._update_cb()
-        if self._remote_update_cb:
-            self._remote_update_cb()
-        if self._select_update_cb:
-            self._select_update_cb()
-        if self._sensor_update_cb:
-            for cb in self._sensor_update_cb.values():
-                cb()
+    def register_callback(self, callback):
+        """Register a callback to update an HA entity."""
+        self._callbacks.add(callback)
 
-    def set_remote_update_cb(self, cb):
-        self._remote_update_cb = cb
+    def remove_callback(self, callback):
+        """Remove a registered callback."""
+        self._callbacks.discard(callback)
 
-    def set_select_update_cb(self, cb):
-        self._select_update_cb = cb
+    def _notify_entities(self):
+        """Call this whenever the Emotiva state changes or goes offline."""
+        for callback in self._callbacks:
+            callback()
 
-    def set_sensor_update_cb(self, sensor_name, cb):
-        self._sensor_update_cb[sensor_name] = cb
-
-    def remove_sensor_update_cb(self, sensor_name):
-        del self._sensor_update_cb[sensor_name]
-
-    def set_update_cb(self, cb):
-        self._update_cb = cb
+    def set_online_state(self, is_online: bool):
+        """Called by PingWatcherService when device drops off/comes back."""
+        if self.is_online != is_online:
+            self.is_online = is_online
+            # Instantly update all connected entities (Media Player, Sensors, etc.)
+            self._notify_entities()
 
     async def run_ping_watcher(self):
         _LOGGER.debug("Setting up Ping Watcher")

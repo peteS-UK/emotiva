@@ -13,8 +13,6 @@ from homeassistant.components.remote import (
 
 from homeassistant import config_entries, core
 
-from homeassistant.core import callback
-
 from homeassistant.helpers.device_registry import DeviceInfo
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,16 +49,10 @@ class EmotivaDevice(RemoteEntity):
 
     async def async_added_to_hass(self):
         """Handle being added to hass."""
-        self._device.set_remote_update_cb(self.async_update_callback)
+        self._device.register_callback(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        self._device.set_remote_update_cb(None)
-
-    @callback
-    def async_update_callback(self, reason=False):
-        """Update the device's state."""
-        _LOGGER.debug("Calling async_schedule_update_ha_state")
-        self.async_schedule_update_ha_state()
+        self._device.remove_callback(self.async_write_ha_state)
 
     @property
     def name(self):
@@ -100,6 +92,12 @@ class EmotivaDevice(RemoteEntity):
         return False
 
     @property
+    def available(self) -> bool:
+        """Return True if the device is currently online and available."""
+        # We will add an 'is_online' flag to your device class
+        return self._device.is_online
+
+    @property
     def unique_id(self):
         return self._unique_id
 
@@ -117,15 +115,27 @@ class EmotivaDevice(RemoteEntity):
     async def async_turn_on(self) -> None:
         await self._device.async_turn_on()
 
-    async def async_send_command(self, command: Iterable[str], **kwargs: Any) -> None:
-        try:
-            emo_Command = command[0].replace(" ", "").split(",")[0]
-            Value = command[0].replace(" ", "").split(",")[1]
-            if len(emo_Command) == 0 or len(Value) == 0:
-                _LOGGER.error("Invalid remote command format.  Must be command,value")
-                return False
-            else:
-                await self._device.async_send_command(emo_Command, Value)
-        except Exception:
-            _LOGGER.error("Invalid remote command format.  Must be command,value")
-            return False
+    async def async_send_command(
+        self, command: Iterable[str], **kwargs: Any
+    ) -> None | bool:
+        """Send commands to the device."""
+        for cmd in command:
+            try:
+                # Clean the string and split it
+                parts = cmd.replace(" ", "").split(",")
+
+                # Ensure we actually have two parts (command and value) before assigning
+                if len(parts) < 2 or len(parts[0]) == 0 or len(parts[1]) == 0:
+                    _LOGGER.error(
+                        "Invalid remote command format: '%s'. Must be 'command,value'",
+                        cmd,
+                    )
+                    continue
+
+                emo_command = parts[0]
+                value = parts[1]
+
+                await self._device.async_send_command(emo_command, value)
+
+            except Exception as err:
+                _LOGGER.error("Unexpected error sending command '%s': %s", cmd, err)
