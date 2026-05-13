@@ -32,6 +32,7 @@ instance.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://m
 This will display the configuration page.  
 
 ![image](https://github.com/user-attachments/assets/eabfad32-22b2-437b-9afa-8ff89648d730)
+<img width="1172" height="418" alt="image" src="https://github.com/user-attachments/assets/1d5e1b81-733a-41c6-afe5-184b64e18401" />
 
 
 ### Discover Processors
@@ -41,6 +42,7 @@ Checking the "Search for Emotiva Processors" option will ask the integration to 
 You can enter the details of your processor manually by ticking "Enter details manually", and completing the fields.  At minumum, you must enter the IP Address and the Name of your processor.  Unless you know otherwise, you can likely leave the Protocol to its default values.
 
 ![image](https://github.com/user-attachments/assets/2ef64d26-898d-47ae-ab5d-fdc0cff07faf)
+<img width="1182" height="1080" alt="image" src="https://github.com/user-attachments/assets/9b7673cb-f656-4802-a8f0-43c4138a05ca" />
 
 When you select Submit, the configuration will discover the processor(s) and setup the components in Home Assistant.  It will create one device, nine entities and an action.
 
@@ -103,6 +105,7 @@ You can also Configure the entity to track additional notifications from the pro
 
 
 ![image](https://github.com/peteS-UK/emotiva/assets/64092177/f106ce12-5110-490f-a5c3-3c15d74f8163)
+<img width="1182" height="1126" alt="image" src="https://github.com/user-attachments/assets/2a5df03e-bc3b-4875-b4b6-cffb0ae16710" />
 
 
 
