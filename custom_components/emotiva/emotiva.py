@@ -8,7 +8,7 @@ import asyncio_datagram
 from lxml import etree
 from asyncping3 import ping
 
-from .const import CONF_PING_INTERVAL
+from .const import CONF_PING_INTERVAL, CONF_PING_ENABLED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,111 +30,176 @@ class InvalidModeError(Error):
 
 
 class PingWatcherService:
-    def __init__(self, hass, config_entry, host):
+    def __init__(self, hass, config_entry, host, on_state_change):
         self._hass = hass
         self._config_entry = config_entry
         self._host = host
         self._stop = False
+        self._on_state_change = on_state_change
 
     async def start(self):
-        while not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
-                # Disable the listener
-                _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
-                self._stop = True
-                break
-            # Ping the AVR
-            _ping = await ping(self._host, timeout=4)
-            if not _ping:
-                # Pause and try again
-                await asyncio.sleep(2)
+        """Monitor connectivity and manage automatic reloads."""
+        is_enabled = self._config_entry.options.get(CONF_PING_ENABLED, True)
+        interval = int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+
+        if not is_enabled or interval <= 0:
+            _LOGGER.info("Ping Watcher is disabled for %s.", self._host)
+            return
+
+        try:
+            while not self._stop:
                 _ping = await ping(self._host, timeout=4)
-            if _ping:
-                # Ping succeeded - wait and retry
-                await asyncio.sleep(
-                    int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
+                if not _ping:
+                    await asyncio.sleep(2)  # Quick retry
+                    _ping = await ping(self._host, timeout=4)
+
+                if _ping:
+                    await asyncio.sleep(interval)
+                else:
+                    break  # Device is down, move to recovery
+
+            if not self._stop:
+                _LOGGER.error(
+                    "Connectivity lost to %s. Marking unavailable.", self._host
                 )
-            else:
-                # Both attempts failed, so break
-                break
-        # Ping failed, so wait until it succeeds again
-        if not self._stop:
-            _LOGGER.error(
-                "Connectivity lost to %s.  Waiting for availability.", self._host
+
+                self._on_state_change(False)
+
+            while not self._stop:
+                if await ping(self._host, timeout=1):
+                    _LOGGER.warning(
+                        "Connectivity re-established with %s. Reloading configuration in 30s.",
+                        self._host,
+                    )
+
+                    await asyncio.sleep(30)
+
+                    self._hass.config_entries.async_schedule_reload(
+                        self._config_entry.entry_id
+                    )
+                    _LOGGER.info("Configuration reloaded for %s.", self._host)
+                    return
+
+                await asyncio.sleep(max(interval, 5))
+
+        except asyncio.CancelledError:
+            _LOGGER.debug("Ping watcher task cancelled for %s", self._host)
+        except Exception as err:
+            _LOGGER.exception(
+                "Unexpected error in Ping Watcher for %s: %s", self._host, err
             )
-        while not await ping(self._host, timeout=1) and not self._stop:
-            if int(self._config_entry.options.get(CONF_PING_INTERVAL)) == 0:
-                _LOGGER.info("Ping Watcher disabled.  Reload config to re-enable")
-                # Disable the listener
-                self._stop = True
-                break
-            # Ping failed - wait and retry
-            await asyncio.sleep(
-                int(self._config_entry.options.get(CONF_PING_INTERVAL, 60))
-            )
-        # Ping succeeded, so it's back, so reload
-        if not self._stop:
-            _LOGGER.error(
-                "Connectivity re-established with %s.  Reloading configuration",
-                self._host,
-            )
-            await asyncio.sleep(30)
-            self._hass.config_entries.async_schedule_reload(self._config_entry.entry_id)
 
     async def stop(self):
+        """Signal the watcher loop to stop cleanly."""
         self._stop = True
 
 
-class EmotivaNotifiers(object):
-    subscription: object
-    subscription_task: object
-    command: object
-    command_task: object
-
-
 class EmotivaNotifier(object):
-    def __init__(self):
+    def __init__(self, notifier_name=""):
         self._devs = {}
+        self._notifier_name = notifier_name
+        self._running = False
+        self._stream = None
+        self.task: asyncio.Task | None = None
 
-    async def _async_start(self, local_ip, local_port):
+    async def async_start(self, local_ip, local_port):
+        self._running = True
+        stream: asyncio_datagram.DatagramServer = None
         _LOGGER.debug("Starting Listener on %s:%d", local_ip, local_port)
         try:
             stream = await asyncio_datagram.bind((local_ip, local_port))
         except IOError as e:
-            _LOGGER.critical("Cannot bind to local socket %d: %s", e.errno, e.strerror)
+            _LOGGER.critical(
+                "Cannot bind to local socket (%s:%s) %d: %s for listener %s",
+                local_ip,
+                local_port,
+                e.errno,
+                e.strerror,
+                self._notifier_name,
+            )
         except Exception:
             _LOGGER.critical(
-                "Unknown error on binding to local socket %s", sys.exc_info()[0]
+                "Unknown error on binding to local socket %s for listener %s: %s",
+                local_ip,
+                self._notifier_name,
+                sys.exc_info()[0],
             )
 
         self._stream = stream
 
-        while True and stream is not None:
-            data, remote_addr = await stream.recv()
+        try:
+            while self._running and self._stream is not None:
+                try:
+                    data, remote_addr = await self._stream.recv()
+                except OSError as exc:
+                    _LOGGER.debug("Listener %s exception: %s", self._notifier_name, exc)
+                    break
 
-            _LOGGER.debug(
-                "Received notification from %s\n%s",
-                remote_addr[0],
-                data.decode() if isinstance(data, bytes) else data,
-            )
+                if not data or not remote_addr:
+                    await asyncio.sleep(0.1)
+                    continue
 
-            cb = self._devs[remote_addr[0]]
+                host = remote_addr[0]
+                _LOGGER.debug(
+                    "Received notification for listener %s from %s\n%s",
+                    self._notifier_name,
+                    host,
+                    data.decode() if isinstance(data, bytes) else data,
+                )
 
-            cb(data)
+                cb = self._devs.get(host)
+                if cb:
+                    try:
+                        cb(data)
+                    except Exception:
+                        _LOGGER.exception("Error in notification callback for %s", host)
+                else:
+                    _LOGGER.debug("No callback registered for %s", host)
 
-            await asyncio.sleep(0.1)
+                await asyncio.sleep(0.1)
+        finally:
+            try:
+                if self._stream is not None:
+                    _LOGGER.debug(
+                        "Closing stream for listener %s",
+                        self._notifier_name,
+                    )
+                    self._stream.close()
+            except Exception:
+                _LOGGER.debug(
+                    "Error closing stream: %s for listener %s",
+                    sys.exc_info()[0],
+                    self._notifier_name,
+                )
+            self._stream = None
+            self._running = False
+            _LOGGER.debug("Listener %s stream stopped", self._notifier_name)
 
     async def _async_register(self, callback, remote_ip):
-        _LOGGER.debug("Registering %s with listener", remote_ip)
+        _LOGGER.debug("Registering %s with listener %s", remote_ip, self._notifier_name)
 
         if remote_ip not in self._devs:
             self._devs[remote_ip] = callback
 
-    async def _async_stop(self):
-        self._stream.close()
+    def stop(self):
+        _LOGGER.debug("Stopping listener %s", self._notifier_name)
+        self._running = False
 
     async def _async_unregister(self, remote_ip):
-        del self._devs[remote_ip]
+        if remote_ip in self._devs:
+            del self._devs[remote_ip]
+            _LOGGER.debug(
+                "Unregistered %s from listener %s", remote_ip, self._notifier_name
+            )
+        else:
+            _LOGGER.debug("Attempted to unregister %s but not found", remote_ip)
+
+
+class EmotivaNotifiers(object):
+    subscription: EmotivaNotifier
+    subscription_task: asyncio.Task
+    command: EmotivaNotifier
+    command_task: asyncio.Task
 
 
 class Emotiva(object):
@@ -186,11 +251,9 @@ class Emotiva(object):
         self._volume_max = 11
         self._volume_min = -96
         self._volume_range = self._volume_max - self._volume_min
-        self._ctrl_sock = None
-        self._udp_stream = None
-        self._update_cb = None
-        self._remote_update_cb = None
-        self._sensor_update_cb = {}
+        self._udp_stream: asyncio_datagram.DatagramClient | None = None
+        self._callbacks = set()
+        self.is_online = True
         self._all_events = set(
             [
                 "power",
@@ -230,20 +293,21 @@ class Emotiva(object):
                 "input_8",
             ]
         )
-        self.ping_watcher = PingWatcherService(self._hass, self._config_entry, ip)
+        self.ping_watcher = PingWatcherService(
+            self._hass, self._config_entry, ip, self.set_online_state
+        )
 
         if not self._ctrl_port or not self._notify_port:
             self.__parse_transponder(transp_xml)
 
         if not self._ctrl_port or not self._notify_port:
-            raise InvalidTransponderResponseError("Coulnd't find ctrl/notify ports")
+            raise InvalidTransponderResponseError("Couldn't find ctrl/notify ports")
 
         self._stripped_model = (
             self._model.replace(" ", "").replace("-", "").replace("_", "").upper()[:4]
         )
         _LOGGER.debug("Stripped Model %s", self._stripped_model)
         match self._stripped_model:
-            # mode : command,mode_name_string, visible
             case "XMC1":
                 _LOGGER.debug("Sound Modes for XMC-1")
                 self._modes = {
@@ -324,8 +388,9 @@ class Emotiva(object):
 
         self._events = events
 
-        # current state
-        self._current_state = dict(((ev, None) for ev in self._events))
+        self._current_state: dict[str, str | None] = dict(
+            ((ev, None) for ev in self._events)
+        )
         self._current_state.update(dict(((m[1], None) for m in self._modes.values())))
         # Add states for the initial music modes
         self._current_state.update(
@@ -384,18 +449,8 @@ class Emotiva(object):
         self._local_ip = self._get_local_ip()
 
     def _get_local_ip(self):
-        #        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        #        sock.connect((self._ip, self._ctrl_port))
-        #        _local_ip = sock.getsockname()[0]
-        #        sock.close()
-        #        return _local_ip
         _LOGGER.debug("Local IP: %s", self._hass.config.api.local_ip)
         return self._hass.config.api.local_ip
-
-    def connect(self):
-        self._ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._ctrl_sock.bind(("", self._ctrl_port))
-        self._ctrl_sock.settimeout(0.5)
 
     async def register_with_notifier(self):
         await self._notifiers.subscription._async_register(
@@ -419,13 +474,14 @@ class Emotiva(object):
 
     def _notify_handler(self, data):
         _LOGGER.debug("Notify Handler called.")
-        _decoded_data = data.decode("utf-8")
+        _decoded_data = (
+            data.decode("utf-8") if isinstance(data, (bytes, bytearray)) else str(data)
+        )
         if "emotivaUnsubscribe" not in _decoded_data:
             resp = self._parse_response(data)
             self._handle_status(resp)
 
         async def _update_sensors():
-            # await asyncio.sleep(1.0)
             await self._update_sensor_values()
 
         if "emotivaUpdate" not in _decoded_data and "audio_input" not in _decoded_data:
@@ -436,7 +492,7 @@ class Emotiva(object):
         msg = self.format_request(
             "emotivaSubscription",
             [(ev, None) for ev in events],
-            {"protocol": "3.0"} if self._proto_ver == 3.0 else {},
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else None,
         )
         await self._async_send_request(msg, ack=True)
 
@@ -444,7 +500,7 @@ class Emotiva(object):
         msg = self.format_request(
             "emotivaUnsubscribe",
             [(ev, None) for ev in events],
-            {"protocol": "3.0"} if self._proto_ver == 3.0 else {},
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else None,
         )
         await self._async_send_request(msg, ack=True)
 
@@ -452,7 +508,7 @@ class Emotiva(object):
         msg = self.format_request(
             "emotivaUpdate",
             [(ev, {}) for ev in events],
-            {"protocol": "3.0"} if self._proto_ver == 3 else {},
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else None,
         )
         await self._async_send_request(msg, ack=True)
 
@@ -466,134 +522,169 @@ class Emotiva(object):
         ]
         await self._update_events(events)
 
-    def disconnect(self):
-        self._ctrl_sock.close()
-
     async def async_update_status(self, events):
         await self._update_events(events)
 
     async def udp_connect(self):
         try:
-            #            self._udp_stream = await asyncio_datagram.connect(
-            #                (self._ip, self._ctrl_port), (self._local_ip, self._ctrl_port)
-            #            )
+            _LOGGER.debug(
+                "Connecting to control socket at %s:%d", self._ip, self._ctrl_port
+            )
             self._udp_stream = await asyncio_datagram.connect(
                 (self._ip, self._ctrl_port)
             )
+
         except IOError as e:
             _LOGGER.critical(
-                "Cannot connect control listener socket %d: %s", e.errno, e.strerror
+                "Cannot connect control socket %d: %s", e.errno, e.strerror
             )
+            self._udp_stream = None
+
         except Exception:
             _LOGGER.critical(
-                "Unknown error on control listener socket connection %s",
+                "Unknown error on control socket connection %s",
                 sys.exc_info()[0],
             )
+            # Ensure no half-open stream
+            self._udp_stream = None
 
     async def udp_disconnect(self):
         try:
-            self._udp_stream.close()
+            if self._udp_stream is not None:
+                _LOGGER.debug("Disconnecting from control socket")
+                self._udp_stream.close()
         except IOError as e:
             _LOGGER.critical(
-                "Cannot disconnect from control listener socket %d: %s",
+                "Cannot disconnect from control socket %d: %s",
                 e.errno,
                 e.strerror,
             )
         except Exception:
             _LOGGER.critical(
-                "Unknown error on control listener socket disconnection %s",
+                "Unknown error on control socket disconnection %s",
                 sys.exc_info()[0],
             )
 
-    async def _udp_client(self, req, ack):
+    async def _udp_client(self, req):
+        if self._udp_stream is None:
+            _LOGGER.debug("UDP stream not connected, attempting to connect")
+            try:
+                await self.udp_connect()
+            except Exception:
+                _LOGGER.exception("Error while attempting initial UDP connect")
+
+        if self._udp_stream is None:
+            _LOGGER.error("UDP stream unavailable, dropping request")
+            self._resp = None
+            return
+
         try:
             await self._udp_stream.send(req)
         except Exception:
             try:
-                _LOGGER.debug("Connection lost.  Attepting to reconnect")
-                self.udp_connect()
+                _LOGGER.debug("Connection lost. Attempting to reconnect")
+                await self.udp_connect()
+                if self._udp_stream is None:
+                    _LOGGER.error("Reconnect failed, dropping request")
+                    self._resp = None
+                    return
                 await self._udp_stream.send(req)
-
-            except IOError as e:
-                _LOGGER.critical(
-                    "Cannot reconnect to command socket %d: %s", e.errno, e.strerror
-                )
             except Exception:
                 _LOGGER.critical(
-                    "Unknown error on command socket reconnection %s", sys.exc_info()[0]
+                    "Error while attempting to resend after exception %s",
+                    sys.exc_info()[0],
                 )
 
-        # await _stream.send(command, (self._ip, self._ctrl_port))
-        # if ack:
-        #    resp, remote_addr = await self._udp_stream.recv()
-        #    _LOGGER.debug(
-        #        "_udp_client received: \n%s",
-        #        resp.decode() if isinstance(resp, bytes) else resp,
-        #    )
-        # else:
-        #    resp = None
-
-        # _stream.close()
-
-        resp = None
-        self._resp = resp
+        # Response handling currently disabled; leave placeholder
+        self._resp = None
 
     async def _async_send_request(self, req, ack=False, process_response=True):
-        await self._udp_client(req, ack)
+        await self._udp_client(req)
 
-        # _LOGGER.debug("_async_send_request received %s", self._resp)
-
-        # if ack and process_response:
-        #    resp = self._parse_response(self._resp)
-        #    self._handle_status(resp)
+        # Used to take an ack and process response if needed, but currently not implemented as responses are not being sent by the AVR
 
     async def _async_send_emotivacontrol(self, command, value):
         msg = self.format_request(
             "emotivaControl",
             [(command, {"value": str(value), "ack": "no"})],
-            {"protocol": "3.0"} if self._proto_ver == 3 else {},
+            {"protocol": "3.0"} if self._proto_ver == 3.0 else None,
         )
         await self._async_send_request(msg, ack=True, process_response=False)
 
     def __parse_transponder(self, transp_xml):
-        # _LOGGER.debug("transp_xml %s", transp_xml)
-        elem = transp_xml.find("name")
-        if elem is not None:
+        if transp_xml is None or len(transp_xml) == 0:
+            _LOGGER.error("No transponder XML provided")
+            return
+
+        try:
+            elem = transp_xml.find("name")
+        except Exception:
+            elem = None
+        if elem is not None and elem.text:
             self._name = elem.text.strip()
-        elem = transp_xml.find("model")
-        if elem is not None:
+
+        try:
+            elem = transp_xml.find("model")
+        except Exception:
+            elem = None
+        if elem is not None and elem.text:
             self._model = elem.text.strip()
 
-        ctrl = transp_xml.find("control")
-        elem = ctrl.find("version")
-        if elem is not None:
-            self._proto_ver = float(elem.text)
-        elem = ctrl.find("controlPort")
-        if elem is not None:
-            self._ctrl_port = int(elem.text)
-        elem = ctrl.find("notifyPort")
-        if elem is not None:
-            self._notify_port = int(elem.text)
-        elem = ctrl.find("infoPort")
-        if elem is not None:
-            self._info_port = int(elem.text)
-        elem = ctrl.find("setupPortTCP")
-        if elem is not None:
-            self._setup_port_tcp = int(elem.text)
+        try:
+            ctrl = transp_xml.find("control")
+        except Exception:
+            ctrl = None
+
+        if ctrl is None:
+            _LOGGER.error(
+                "Transponder response missing <control> element; cannot parse ports/version"
+            )
+            return
+
+        try:
+            elem = ctrl.find("version")
+            if elem is not None and elem.text:
+                try:
+                    self._proto_ver = float(elem.text)
+                except Exception:
+                    _LOGGER.debug(
+                        "Invalid protocol version in transponder: %s", elem.text
+                    )
+        except Exception:
+            _LOGGER.debug("Error reading version from transponder")
+
+        def _safe_int_from_ctrl(tag_name):
+            try:
+                el = ctrl.find(tag_name)
+                if el is not None and el.text:
+                    return int(el.text)
+            except Exception:
+                _LOGGER.debug("Invalid integer for %s in transponder", tag_name)
+            return None
+
+        _val = _safe_int_from_ctrl("controlPort")
+        if _val is not None:
+            self._ctrl_port = _val
+        _val = _safe_int_from_ctrl("notifyPort")
+        if _val is not None:
+            self._notify_port = _val
+        _val = _safe_int_from_ctrl("infoPort")
+        if _val is not None:
+            self._info_port = _val
+        _val = _safe_int_from_ctrl("setupPortTCP")
+        if _val is not None:
+            self._setup_port_tcp = _val
 
     def _handle_status(self, resp):
         _LOGGER.debug("_handle_status called")
         for elem in resp:
             if elem.tag == "property":
-                # v3 protocol style response, convert it to v2 style
-                # _LOGGER.debug("Handling Protocol V3 xml")
                 elem.tag = elem.get("name")
             if elem.tag not in self._current_state:
                 _LOGGER.debug("Unknown element: %s" % elem.tag)
                 continue
             val = (elem.get("value") or "").strip()
             visible = (elem.get("visible") or "").strip()
-            # update mode status
             if elem.tag.startswith("mode_"):
                 for v in self._modes.items():
                     if v[1][1] == elem.tag and v[1][2] != visible:
@@ -602,7 +693,6 @@ class Emotiva(object):
                             " Changing visibility of %s to %s", elem.tag, visible
                         )
                         self._modes.update({v[0]: v[1]})
-            # do not
             if elem.tag.startswith("input_") and visible != "true":
                 continue
             if elem.tag == "volume":
@@ -610,37 +700,31 @@ class Emotiva(object):
                     self._muted = True
                     continue
                 self._muted = False
-                # fall through
             if val:
                 self._current_state[elem.tag] = val
             if elem.tag.startswith("input_"):
                 num = elem.tag[6:]
                 self._sources["source_" + num] = val
+        self._notify_entities()
 
-        if self._update_cb:
-            self._update_cb()
-        if self._remote_update_cb:
-            self._remote_update_cb()
-        if self._select_update_cb:
-            self._select_update_cb()
-        if self._sensor_update_cb:
-            for cb in self._sensor_update_cb.values():
-                cb()
+    def register_callback(self, callback):
+        """Register a callback to update an HA entity."""
+        self._callbacks.add(callback)
 
-    def set_remote_update_cb(self, cb):
-        self._remote_update_cb = cb
+    def remove_callback(self, callback):
+        """Remove a registered callback."""
+        self._callbacks.discard(callback)
 
-    def set_select_update_cb(self, cb):
-        self._select_update_cb = cb
+    def _notify_entities(self):
+        """Call this whenever the Emotiva state changes or goes offline."""
+        for callback in self._callbacks:
+            callback()
 
-    def set_sensor_update_cb(self, sensor_name, cb):
-        self._sensor_update_cb[sensor_name] = cb
-
-    def remove_sensor_update_cb(self, sensor_name):
-        del self._sensor_update_cb[sensor_name]
-
-    def set_update_cb(self, cb):
-        self._update_cb = cb
+    def set_online_state(self, is_online: bool):
+        """Called by PingWatcherService when device drops off/comes back."""
+        if self.is_online != is_online:
+            self.is_online = is_online
+            self._notify_entities()
 
     async def run_ping_watcher(self):
         _LOGGER.debug("Setting up Ping Watcher")
@@ -671,8 +755,8 @@ class Emotiva(object):
 
         req = cls.format_request(
             "emotivaPing",
-            {},
-            {"protocol": "3.0"} if version == 3.0 else {},
+            [],
+            {"protocol": "3.0"} if version == 3.0 else None,
         )
 
         _LOGGER.debug("discover Broadcast Req: %s", req)
@@ -684,42 +768,69 @@ class Emotiva(object):
                 _resp_data, (ip, port) = resp_sock.recvfrom(4096)
 
                 resp = cls._parse_response(_resp_data)
+                if resp is None:
+                    _LOGGER.debug("Skipping malformed discovery response from %s", ip)
+                    continue
                 _LOGGER.debug("Parsed ping response %s", resp)
                 devices.append((ip, resp))
             except socket.timeout:
                 break
-        if len(devices) > 0:
-            # return devices[0]
-            return devices
-        else:
-            return None
+        return devices
 
     @classmethod
     def _parse_response(cls, data):
-        # _LOGGER.debug("parse_response: %s", data)
+        # Parse XML discovery responses; return None on failure so callers
+        # can skip malformed responses safely.
         try:
             parser = etree.XMLParser(ns_clean=True, recover=True)
             root = etree.XML(data, parser)
+            return root
         except etree.ParseError:
-            _LOGGER.error("Malformed XML")
-            _LOGGER.error(data)
-            root = ""
-        return root
+            _LOGGER.error("Malformed XML in discovery response")
+            _LOGGER.debug("Response data: %s", data)
+            return None
+        except Exception:
+            _LOGGER.exception("Unexpected error parsing discovery response")
+            return None
 
     @classmethod
-    def format_request(cls, pkt_type, req={}, pkt_attrs={}):
+    def format_request(cls, pkt_type, req=None, pkt_attrs=None):
         """
-        req is a list of 2-element tuples with first element being the command,
-        and second being a dict of parameters. E.g.
-        ('power_on', {'value': "0"})
+        Build an XML request packet.
 
-        pkt_attrs is a dictionary containing element attributes. E.g.
-        {'protocol': "3.0"}
+        - `req` should be a list/tuple of 2-element tuples: (command, params_dict).
+          If `None`, it becomes an empty list. If a mapping is passed, it's
+          converted to list(mapping.items()). Empty mapping becomes an empty
+          request list.
+        - `pkt_attrs` should be a dict of attributes for the root element; if
+          `None` it's treated as an empty dict.
         """
+        if req is None:
+            req = []
+        elif isinstance(req, dict):
+            # convert mapping->list of (cmd, params) if non-empty, else empty
+            req = list(req.items()) if req else []
+        elif not isinstance(req, (list, tuple)):
+            raise TypeError("req must be a list/tuple of (cmd, params) or None")
+
+        if pkt_attrs is None:
+            pkt_attrs = {}
+        elif not isinstance(pkt_attrs, dict):
+            raise TypeError("pkt_attrs must be a dict or None")
+
         output = cls.XML_HEADER
         builder = etree.TreeBuilder()
         builder.start(pkt_type, pkt_attrs)
-        for cmd, params in req:
+        for item in req:
+            try:
+                cmd, params = item
+            except Exception:
+                raise TypeError("each req item must be a (cmd, params) pair")
+            if params is None:
+                params = {}
+            elif not isinstance(params, dict):
+                # coerce simple values to string param
+                params = {"value": str(params)}
             builder.start(cmd, params)
             builder.end(cmd)
         builder.end(pkt_type)
@@ -744,11 +855,6 @@ class Emotiva(object):
             return True
         return False
 
-    # @power.setter
-    # def power(self, onoff):
-    # 	cmd = {True: 'power_on', False: 'power_off'}[onoff]
-    # 	self._send_emotivacontrol(cmd,0)
-
     @property
     def volume_level(self):
         if self._current_state["volume"] is not None:
@@ -764,10 +870,6 @@ class Emotiva(object):
 
     def set_notifiers(self, notifiers):
         self._notifiers: EmotivaNotifiers = notifiers
-
-    # @volume.setter
-    # def volume(self, value):
-    # 	self._send_emotivacontrol('set_volume',value)
 
     async def _async_volume_step(self, incr):
         await self._async_send_emotivacontrol("volume", incr)
@@ -800,11 +902,6 @@ class Emotiva(object):
     @property
     def mute(self):
         return self._muted
-
-    # @mute.setter
-    # def mute(self, enable):
-    # 	mute_cmd = {True: 'mute_on', False: 'mute_off'}[enable]
-    # 	self._send_emotivacontrol(mute_cmd,0)
 
     @property
     def sources(self):

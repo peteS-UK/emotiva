@@ -8,7 +8,10 @@ CONF_DISCOVER = "discover"
 CONF_MANUAL = "manual"
 CONF_TYPE = "type"
 CONF_PING_INTERVAL = "ping_interval"
+CONF_PING_ENABLED = "ping_enabled"
 
 DOMAIN = "emotiva"
 DEFAULT_NAME = "Emotiva Processor"
 SERVICE_SEND_COMMAND = "send_command"
+
+CONFIG_ENTRY_VERSION = 2

@@ -7,7 +7,6 @@ from .const import DOMAIN
 import voluptuous as vol
 
 from homeassistant.components.media_player import (
-    PLATFORM_SCHEMA,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
@@ -15,7 +14,6 @@ from homeassistant.components.media_player import (
 
 from homeassistant import config_entries, core
 
-from homeassistant.const import CONF_HOST, CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import (
     config_validation as cv,
@@ -25,10 +23,6 @@ from homeassistant.helpers import (
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import (
-    CONF_NOTIFICATIONS,
-    CONF_NOTIFY_PORT,
-    CONF_CTRL_PORT,
-    CONF_PROTO_VER,
     SERVICE_SEND_COMMAND,
 )
 
@@ -37,17 +31,6 @@ import asyncio
 
 _LOGGER = logging.getLogger(__name__)
 
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Optional(CONF_HOST): cv.string,
-        vol.Optional(CONF_NAME, default=None): cv.string,
-        vol.Optional(CONF_NOTIFICATIONS, default=None): cv.string,
-        vol.Optional(CONF_CTRL_PORT, default=7002): vol.Coerce(int),
-        vol.Optional(CONF_NOTIFY_PORT, default=7003): vol.Coerce(int),
-        vol.Optional(CONF_PROTO_VER, default=3.0): vol.Coerce(float),
-    }
-)
 
 SUPPORT_EMOTIVA = (
     MediaPlayerEntityFeature.VOLUME_STEP
@@ -97,8 +80,7 @@ class EmotivaDevice(MediaPlayerEntity):
             "-", "_"
         ).replace(":", "_")
         self._device_class = "receiver"
-        # self._notifier_task = None
-        self._record_atrributes = {
+        self._record_attributes = {
             "audio_input",
             "mode",
             "volume",
@@ -108,11 +90,10 @@ class EmotivaDevice(MediaPlayerEntity):
             "audio_bitstream",
         }
         self._device.set_notifiers(notifiers)
+        self._ping_task: asyncio.Task | None = None
 
     async def async_added_to_hass(self):
         """Subscribe to device events."""
-        self._device.set_update_cb(self.async_update_callback)
-
         await self._device.register_with_notifier()
         await self._device.udp_connect()
         await self._device.async_subscribe_events()
@@ -123,6 +104,9 @@ class EmotivaDevice(MediaPlayerEntity):
             await self._device.async_set_mode(self._device.mode)
         else:
             await self._device.async_set_mode("Stereo")
+
+        # Register a callback so the device can tell the entity to update the UI
+        self._device.register_callback(self.async_write_ha_state)
         self._ping_task = self._hass.async_create_background_task(
             self._device.run_ping_watcher(), name="emotiva ping watcher task"
         )
@@ -136,21 +120,46 @@ class EmotivaDevice(MediaPlayerEntity):
     async def async_will_remove_from_hass(self) -> None:
         await self._device.async_unsubscribe_events()
 
-        self._device.set_update_cb(None)
+        self._device.remove_callback(self.async_write_ha_state)
 
         await self._device.udp_disconnect()
 
         await self._device.unregister_from_notifier()
 
         try:
-            await self._device.stop_ping_watcher()
-            self._ping_task.cancel()
+            try:
+                await self._device.stop_ping_watcher()
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Timeout while signalling ping watcher to stop")
+            except Exception:
+                _LOGGER.exception("Error signalling ping watcher to stop")
+
+            if self._ping_task is not None:
+                try:
+                    self._ping_task.cancel()
+                except Exception:
+                    _LOGGER.debug("Error cancelling ping task")
+                try:
+                    await self._ping_task
+                except asyncio.TimeoutError:
+                    _LOGGER.error("Timeout while awaiting ping task cancellation")
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    _LOGGER.exception("Error awaiting ping task")
+                finally:
+                    self._ping_task = None
         except Exception:
-            pass
+            _LOGGER.exception("Unexpected error stopping ping watcher")
 
     @property
     def should_poll(self):
         return False
+
+    @property
+    def available(self) -> bool:
+        """Return True if the device is currently online and available."""
+        return self._device.is_online
 
     @property
     def icon(self):
@@ -161,7 +170,6 @@ class EmotivaDevice(MediaPlayerEntity):
 
     @property
     def name(self):
-        # return self._device.name
         return None
 
     @property
@@ -172,10 +180,7 @@ class EmotivaDevice(MediaPlayerEntity):
     def device_info(self) -> DeviceInfo:
         """Return the device info."""
         return DeviceInfo(
-            identifiers={
-                # Serial numbers are unique identifiers within a specific domain
-                (DOMAIN, self._unique_id)
-            },
+            identifiers={(DOMAIN, self._unique_id)},
             name=self._device.name,
             manufacturer="Emotiva",
             model=self._device.model,
@@ -295,9 +300,6 @@ class EmotivaDevice(MediaPlayerEntity):
 
     async def async_volume_down(self):
         await self._device.async_volume_down()
-
-    # def update(self):
-    # 	self._device._update_status(self._device._events, float(self._device._proto_ver))
 
     async def async_update(self):
         await self._device.async_update_status(self._device._events)

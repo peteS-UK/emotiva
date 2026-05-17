@@ -2,7 +2,7 @@
 
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
-[![maintained](https://img.shields.io/maintenance/yes/2025.svg)](#)
+[![maintained](https://img.shields.io/maintenance/yes/2026.svg)](#)
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petes--UK-blue.svg)](#)
 [![version](https://img.shields.io/github/v/release/peteS-UK/emotiva)](#)
 
@@ -31,16 +31,15 @@ instance.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://m
 
 This will display the configuration page.  
 
-![image](https://github.com/user-attachments/assets/eabfad32-22b2-437b-9afa-8ff89648d730)
-
+<img width="1172" height="418" alt="image" src="https://github.com/user-attachments/assets/1d5e1b81-733a-41c6-afe5-184b64e18401" />
 
 ### Discover Processors
-Checking the "Search for Emotiva Processors" option will ask the integration to search for processors each time your restart Home Assistant or reload the integration.  This uses udp broadcast, and so will normally only find processors on the same subnet as your Home Assistant server.  If discovery fails, or if your processors is on a different subnet, you can enter details manually.
+Selecting the "Discover processors automatically" option will ask the integration to search for processors and create an entry for the first unconfigured device found.  This uses udp broadcast, and so will normally only find processors on the same subnet as your Home Assistant server.  If discovery fails, or if your processors is on a different subnet, you can enter details manually.
 
 ### Manual Entry
-You can enter the details of your processor manually by ticking "Enter details manually", and completing the fields.  At minumum, you must enter the IP Address and the Name of your processor.  Unless you know otherwise, you can likely leave the Protocol to its default values.
+You can enter the details of your processor manually by ticking "Enter details manually", and completing the fields.  At minumum, you must enter the IP Address and the Name of your processor.
 
-![image](https://github.com/user-attachments/assets/2ef64d26-898d-47ae-ab5d-fdc0cff07faf)
+<img width="1182" height="1080" alt="image" src="https://github.com/user-attachments/assets/9b7673cb-f656-4802-a8f0-43c4138a05ca" />
 
 When you select Submit, the configuration will discover the processor(s) and setup the components in Home Assistant.  It will create one device, nine entities and an action.
 
@@ -52,9 +51,7 @@ A device will be created with the same name as your processor - e.g. XMC-1.
 ### Media Player entity
 A media player entity will be created with a default entity_id of media_player.emotivaprocessor.  
 
-
 ![image](https://github.com/peteS-UK/emotiva/assets/64092177/1e90c014-3b1f-4b1e-9f04-e24b7a3bdfb9)
-
 
 You can control power state, volume, muting, source and sound mode from the media player.  You can also use this entity from any card for media player.
 
@@ -63,7 +60,7 @@ A source entity will be created, allowing you to directly select the source from
 
 ![image](https://github.com/user-attachments/assets/1e2978da-23f2-4ecc-96d7-2546d676df7e)
 
-6 sensors to display info such as volume, video format, audio format etc. are also created, enabling you to show the type of info you see on the processors from screen.
+7 sensors to display info such as volume, video format, audio format etc. are also created, enabling you to show the type of info you see on the processors from screen.
 
 ![image](https://github.com/user-attachments/assets/2a7c6d21-3b9b-4f3d-a966-5458fa0b1e85)
 
@@ -99,12 +96,17 @@ You could then use these attributes to trigger an automation based on a change o
 ![image](https://github.com/peteS-UK/emotiva/assets/64092177/290519fc-c5d3-4ae2-9436-2206d17c3572)
 
 
-You can also Configure the entity to track additional notifications from the processor.  In your Integration page, select Configure, and enter a list of comma seperated notifications for which the integration should create additional state attributes.
+## Configure Options
 
+You can also Configure the entity to track additional notifications from the processor and the periodically ping the processor to check for connectivity.  In your Integration page, select Configure.
 
-![image](https://github.com/peteS-UK/emotiva/assets/64092177/f106ce12-5110-490f-a5c3-3c15d74f8163)
+<img width="1182" height="1126" alt="image" src="https://github.com/user-attachments/assets/2a5df03e-bc3b-4875-b4b6-cffb0ae16710" />
 
+### Additional Notifications
+If you add additional notifications, these will be tracked as part of the state of the media player entity.
 
+### Connectivity Checks
+If you enable "Periodic connectivity check pings", the integration will ping the processor using the chosen number of seconds.  If the processor doesn't respond to pings, the entities will be marked as Unavailable and the integration will keep checking for availability and if the processor becomes available again, the integration will reload an the entities will become available again.
 
 
 

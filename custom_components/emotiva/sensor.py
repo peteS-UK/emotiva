@@ -8,8 +8,6 @@ from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 
 from homeassistant import config_entries, core
 
-from homeassistant.core import callback
-
 from homeassistant.helpers.device_registry import DeviceInfo
 
 _LOGGER = logging.getLogger(__name__)
@@ -102,21 +100,20 @@ class EmotivaDevice(SensorEntity):
 
     async def async_added_to_hass(self):
         """Handle being added to hass."""
-        self._device.set_sensor_update_cb(
-            self._sensor["name"], self.async_update_callback
-        )
+        self._device.register_callback(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        self._device.remove_sensor_update_cb(self._sensor["name"])
-
-    @callback
-    def async_update_callback(self, reason=False):
-        """Update the device's state."""
-        self.async_schedule_update_ha_state()
+        self._device.remove_callback(self.async_write_ha_state)
 
     @property
     def name(self):
         return self._device.name + " " + self._sensor["display_name"]
+
+    @property
+    def available(self) -> bool:
+        """Return True if the device is currently online and available."""
+        # We will add an 'is_online' flag to your device class
+        return self._device.is_online
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -167,4 +164,21 @@ class EmotivaDevice(SensorEntity):
 
     @property
     def native_value(self):
-        return eval("self._device._current_state['" + self._sensor["state"] + "']")
+        key = self._sensor["state"]
+        state = self._device._current_state.get(key)
+        if state is None:
+            return None
+
+        # If this sensor represents a numeric value (volume uses dB / sound pressure),
+        # attempt to coerce to float and return None on parse failure.
+        if (
+            self._sensor.get("uom") is not None
+            or self._sensor.get("class") == SensorDeviceClass.SOUND_PRESSURE
+        ):
+            try:
+                return float(str(state).strip())
+            except (ValueError, TypeError):
+                return None
+
+        # Otherwise return the raw state value (string or other type)
+        return state
