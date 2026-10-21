@@ -5,10 +5,10 @@ import sys
 import time
 
 import asyncio_datagram
-from lxml import etree
 from asyncping3 import ping
+from lxml import etree
 
-from .const import CONF_PING_INTERVAL, CONF_PING_ENABLED
+from .const import CONF_PING_ENABLED, CONF_PING_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,17 +84,15 @@ class PingWatcherService:
 
         except asyncio.CancelledError:
             _LOGGER.debug("Ping watcher task cancelled for %s", self._host)
-        except Exception as err:
-            _LOGGER.exception(
-                "Unexpected error in Ping Watcher for %s: %s", self._host, err
-            )
+        except Exception:
+            _LOGGER.exception("Unexpected error in Ping Watcher for %s", self._host)
 
     async def stop(self):
         """Signal the watcher loop to stop cleanly."""
         self._stop = True
 
 
-class EmotivaNotifier(object):
+class EmotivaNotifier:
     def __init__(self, notifier_name=""):
         self._devs = {}
         self._notifier_name = notifier_name
@@ -108,7 +106,7 @@ class EmotivaNotifier(object):
         _LOGGER.debug("Starting Listener on %s:%d", local_ip, local_port)
         try:
             stream = await asyncio_datagram.bind((local_ip, local_port))
-        except IOError as e:
+        except OSError as e:
             _LOGGER.critical(
                 "Cannot bind to local socket (%s:%s) %d: %s for listener %s",
                 local_ip,
@@ -195,14 +193,14 @@ class EmotivaNotifier(object):
             _LOGGER.debug("Attempted to unregister %s but not found", remote_ip)
 
 
-class EmotivaNotifiers(object):
+class EmotivaNotifiers:
     subscription: EmotivaNotifier
     subscription_task: asyncio.Task
     command: EmotivaNotifier
     command_task: asyncio.Task
 
 
-class Emotiva(object):
+class Emotiva:
     XML_HEADER = '<?xml version="1.0" encoding="utf-8"?>'.encode("utf-8")
     DISCOVER_REQ_PORT = 7000
     DISCOVER_RESP_PORT = 7001
@@ -391,7 +389,7 @@ class Emotiva(object):
         self._current_state: dict[str, str | None] = dict(
             ((ev, None) for ev in self._events)
         )
-        self._current_state.update(dict(((m[1], None) for m in self._modes.values())))
+        self._current_state.update(dict((m[1], None) for m in self._modes.values()))
         # Add states for the initial music modes
         self._current_state.update(
             {
@@ -534,14 +532,14 @@ class Emotiva(object):
                 (self._ip, self._ctrl_port)
             )
 
-        except IOError as e:
+        except OSError as e:
             _LOGGER.critical(
                 "Cannot connect control socket %d: %s", e.errno, e.strerror
             )
             self._udp_stream = None
 
         except Exception:
-            _LOGGER.critical(
+            _LOGGER.exception(
                 "Unknown error on control socket connection %s",
                 sys.exc_info()[0],
             )
@@ -765,7 +763,7 @@ class Emotiva(object):
         devices = []
         while True:
             try:
-                _resp_data, (ip, port) = resp_sock.recvfrom(4096)
+                _resp_data, (ip, _port) = resp_sock.recvfrom(4096)
 
                 resp = cls._parse_response(_resp_data)
                 if resp is None:
@@ -773,7 +771,7 @@ class Emotiva(object):
                     continue
                 _LOGGER.debug("Parsed ping response %s", resp)
                 devices.append((ip, resp))
-            except socket.timeout:
+            except TimeoutError:
                 break
         return devices
 

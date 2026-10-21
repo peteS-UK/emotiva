@@ -3,7 +3,7 @@ import logging
 from typing import Any
 
 import homeassistant.helpers.config_validation as cv
-import voluptuous as vol
+import probatio
 from asyncping3 import ping
 from homeassistant import config_entries
 from homeassistant.config_entries import (
@@ -27,8 +27,8 @@ from .const import (
     CONF_PING_ENABLED,
     CONF_PING_INTERVAL,
     CONF_PROTO_VER,
-    DOMAIN,
     CONFIG_ENTRY_VERSION,
+    DOMAIN,
 )
 from .emotiva import Emotiva
 
@@ -50,31 +50,31 @@ EXTRA_NOTIFICATIONS = [
     "tuner_RDS",
 ]
 
-EMO_MANUAL_SCHEMA = vol.Schema(
+EMO_MANUAL_SCHEMA = probatio.Schema(
     {
-        vol.Required(CONF_HOST): cv.string,
-        vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_MODEL): SelectSelector(
+        probatio.Required(CONF_HOST): cv.string,
+        probatio.Required(CONF_NAME): cv.string,
+        probatio.Required(CONF_MODEL): SelectSelector(
             SelectSelectorConfig(
                 mode=SelectSelectorMode.DROPDOWN,
                 options=["XMC-1", "XMC-2", "RMC-1", "RMC-1l"],
             )
         ),
-        vol.Required(CONF_PROTO_VER, default="3.0"): vol.All(
+        probatio.Required(CONF_PROTO_VER, default="3.0"): probatio.All(
             SelectSelector(
                 SelectSelectorConfig(
                     mode=SelectSelectorMode.DROPDOWN,
                     options=["3.0", "2.0"],
                 )
             ),
-            vol.Coerce(float),
+            probatio.Coerce(float),
         ),
     }
 )
 
-EMO_OPTIONS_SCHEMA = vol.Schema(
+EMO_OPTIONS_SCHEMA = probatio.Schema(
     {
-        vol.Optional(CONF_NOTIFICATIONS): SelectSelector(
+        probatio.Optional(CONF_NOTIFICATIONS): SelectSelector(
             SelectSelectorConfig(
                 options=EXTRA_NOTIFICATIONS,
                 multiple=True,
@@ -82,12 +82,12 @@ EMO_OPTIONS_SCHEMA = vol.Schema(
                 mode=SelectSelectorMode.DROPDOWN,
             )
         ),
-        vol.Optional(CONF_PING_ENABLED, default=True): bool,
-        vol.Optional(CONF_PING_INTERVAL): vol.All(
+        probatio.Optional(CONF_PING_ENABLED, default=True): bool,
+        probatio.Optional(CONF_PING_INTERVAL): probatio.All(
             NumberSelector(
                 NumberSelectorConfig(min=1, max=600, mode=NumberSelectorMode.SLIDER)
             ),
-            vol.Coerce(int),
+            probatio.Coerce(int),
         ),
     }
 )
@@ -176,7 +176,9 @@ class EmotivaConfigFlow(ConfigFlow):
         device_names = [device.name for device in self.discovered_devices]
         return self.async_show_form(
             step_id="choose_device",
-            data_schema=vol.Schema({vol.Required("device"): vol.In(device_names)}),
+            data_schema=probatio.Schema(
+                {probatio.Required("device"): probatio.In(device_names)}
+            ),
         )
 
     async def async_step_user(self, user_input=None):

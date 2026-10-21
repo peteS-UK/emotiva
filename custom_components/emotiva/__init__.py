@@ -1,8 +1,7 @@
 """The emotiva component."""
 
-import logging
 import asyncio
-
+import logging
 
 from homeassistant import config_entries, core
 from homeassistant.components.network import async_get_source_ip
@@ -10,18 +9,18 @@ from homeassistant.const import CONF_HOST, CONF_MODEL, CONF_NAME, Platform
 
 from .const import (
     CONF_CTRL_PORT,
-    CONF_PING_ENABLED,
-    CONF_PING_INTERVAL,
+    CONF_DISCOVER,
     CONF_NOTIFICATIONS,
     CONF_NOTIFY_PORT,
+    CONF_PING_ENABLED,
+    CONF_PING_INTERVAL,
     CONF_PROTO_VER,
-    CONF_DISCOVER,
     CONF_TYPE,
     DEFAULT_CTRL_PORT,
     DEFAULT_NOTIFY_PORT,
     DOMAIN,
 )
-from .emotiva import Emotiva, EmotivaNotifiers, EmotivaNotifier
+from .emotiva import Emotiva, EmotivaNotifier, EmotivaNotifiers
 
 _LOGGER = logging.getLogger(__name__)
 

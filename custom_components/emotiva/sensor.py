@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import logging
 
-from .const import DOMAIN
-
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
-
 from homeassistant import config_entries, core
-
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.helpers.device_registry import DeviceInfo
+
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 

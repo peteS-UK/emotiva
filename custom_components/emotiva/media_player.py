@@ -1,33 +1,28 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
-from .const import DOMAIN
-
-import voluptuous as vol
-
-from homeassistant.components.media_player import (
-    MediaPlayerEntity,
+import probatio
+from homeassistant import config_entries, core
+from homeassistant.components.media_player import MediaPlayerEntity
+from homeassistant.components.media_player.const import (
     MediaPlayerEntityFeature,
     MediaPlayerState,
 )
-
-from homeassistant import config_entries, core
-
 from homeassistant.core import callback
 from homeassistant.helpers import (
     config_validation as cv,
+)
+from homeassistant.helpers import (
     entity_platform,
 )
-
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import (
+    DOMAIN,
     SERVICE_SEND_COMMAND,
 )
-
-
-import asyncio
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,8 +57,8 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_SEND_COMMAND,
         {
-            vol.Required("Command"): cv.string,
-            vol.Required("Value"): cv.string,
+            probatio.Required("Command"): cv.string,
+            probatio.Required("Value"): cv.string,
         },
         EmotivaDevice.send_command.__name__,
     )
@@ -129,7 +124,7 @@ class EmotivaDevice(MediaPlayerEntity):
         try:
             try:
                 await self._device.stop_ping_watcher()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.debug("Timeout while signalling ping watcher to stop")
             except Exception:
                 _LOGGER.exception("Error signalling ping watcher to stop")
@@ -138,10 +133,10 @@ class EmotivaDevice(MediaPlayerEntity):
                 try:
                     self._ping_task.cancel()
                 except Exception:
-                    _LOGGER.debug("Error cancelling ping task")
+                    _LOGGER.exception("Error cancelling ping task")
                 try:
                     await self._ping_task
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     _LOGGER.error("Timeout while awaiting ping task cancellation")
                 except asyncio.CancelledError:
                     pass
@@ -283,8 +278,8 @@ class EmotivaDevice(MediaPlayerEntity):
             )
 
     async def async_set_volume_level(self, volume: float) -> None:
-        _vol = (volume * self._device._volume_range) + self._device._volume_min
-        await self._device.async_volume_set(str(_vol))
+        _volume = (volume * self._device._volume_range) + self._device._volume_min
+        await self._device.async_volume_set(str(_volume))
 
     async def async_turn_off(self) -> None:
         await self._device.async_turn_off()

@@ -1,19 +1,16 @@
 from __future__ import annotations
 
 import logging
-
 from collections.abc import Iterable
 from typing import Any
 
-from .const import DOMAIN
-
+from homeassistant import config_entries, core
 from homeassistant.components.remote import (
     RemoteEntity,
 )
-
-from homeassistant import config_entries, core
-
 from homeassistant.helpers.device_registry import DeviceInfo
+
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -115,9 +112,7 @@ class EmotivaDevice(RemoteEntity):
     async def async_turn_on(self) -> None:
         await self._device.async_turn_on()
 
-    async def async_send_command(
-        self, command: Iterable[str], **kwargs: Any
-    ) -> None | bool:
+    async def async_send_command(self, command: Iterable[str], **kwargs: Any) -> None:
         """Send commands to the device."""
         for cmd in command:
             try:
@@ -137,5 +132,5 @@ class EmotivaDevice(RemoteEntity):
 
                 await self._device.async_send_command(emo_command, value)
 
-            except Exception as err:
-                _LOGGER.error("Unexpected error sending command '%s': %s", cmd, err)
+            except Exception:
+                _LOGGER.exception("Unexpected error sending command '%s'", cmd)
