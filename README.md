@@ -1,7 +1,7 @@
 # Home Assistant to Emotiva Processor Media Player
 
 
-![Available in Marketplace](https://img.shields.io/badge/Marketplace-Available-41BDF5)](#install-with-marketplace)
+[![Available in Marketplace](https://img.shields.io/badge/Marketplace-Available-41BDF5)](#install-with-marketplace)
 [![maintained](https://img.shields.io/maintenance/yes/2026.svg)](#)
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petes--UK-blue.svg)](#)
 [![version](https://img.shields.io/github/v/release/peteS-UK/emotiva)](#)
