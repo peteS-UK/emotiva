@@ -17,7 +17,7 @@ The [Marketplace](https://www.home-assistant.io/integrations/marketplace/) is bu
 
 1. As an administrator, open **Settings → Marketplace** and accept its first-use notice if prompted.
 2. Search for **Emotiva Processor** and open its page.
-3. Choose **Install**, review the version, then confirm **Install**. Account setup opens when installation finishes; continue with **Configuration**. A fresh installation does not need a restart.
+3. Choose **Install**, review the version, then confirm **Install**. Account setup opens when installation finishes; continue with [Configuration](#configuration). A fresh installation does not need a restart.
 
 Existing HACS installations migrate automatically when you upgrade Home Assistant to 2026.11. Your installed integration and updates carry over; you do not need to reinstall it.
 
