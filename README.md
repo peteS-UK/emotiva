@@ -1,7 +1,7 @@
-# Home Assistant to Emotiva Processor Media Player
+  # Home Assistant to Emotiva Processor Media Player
 
 
-[![Available in Marketplace](https://img.shields.io/badge/Marketplace-Available-41BDF5)](#install-with-marketplace)
+[![Available in Marketplace](https://img.shields.io/badge/Marketplace-Available-41BDF5)](#installation-with-marketplace)
 [![maintained](https://img.shields.io/maintenance/yes/2026.svg)](#)
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petes--UK-blue.svg)](#)
 [![version](https://img.shields.io/github/v/release/peteS-UK/emotiva)](#)
@@ -23,9 +23,7 @@ Existing HACS installations migrate automatically when you upgrade Home Assistan
 
 ## Installation with HACS
 
-For older versions of Home Assistant, you can install via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  
-
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=peteS-UK&repository=emotiva&category=integration)
+For older versions of Home Assistant, you can install via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  Search for **Emotiva Processor** and install the integration.
 
 ## Manual Installation
 
