@@ -1,7 +1,7 @@
 # Home Assistant to Emotiva Processor Media Player
 
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
+![Available in Marketplace](https://img.shields.io/badge/Marketplace-Available-41BDF5)](#install-with-marketplace)
 [![maintained](https://img.shields.io/maintenance/yes/2026.svg)](#)
 [![maintainer](https://img.shields.io/badge/maintainer-%20%40petes--UK-blue.svg)](#)
 [![version](https://img.shields.io/github/v/release/peteS-UK/emotiva)](#)
@@ -11,23 +11,34 @@ This custom component implements a media player entity, a remote entity and a nu
 
 The integration is a Local Push integration - i.e. it subscribes to notification of changes to the processor, so doesn't need to periodically poll the processor for its state.
 
-## Installation
+## Installation with Marketplace
 
-The preferred installation approach is via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  
+The [Marketplace](https://www.home-assistant.io/integrations/marketplace/) is built into **Home Assistant 2026.11 and later**; no separate store installation is needed.
+
+1. As an administrator, open **Settings → Marketplace** and accept its first-use notice if prompted.
+2. Search for **Emotiva Processor** and open its page.
+3. Choose **Install**, review the version, then confirm **Install**. Account setup opens when installation finishes; continue with **Configuration**. A fresh installation does not need a restart.
+
+Existing HACS installations migrate automatically when you upgrade Home Assistant to 2026.11. Your installed integration and updates carry over; you do not need to reinstall it.
+
+## Installation with HACS
+
+For older versions of Home Assistant, you can install via Home Assistant Community Store - aka [HACS](https://hacs.xyz/).  
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=peteS-UK&repository=emotiva&category=integration)
+
+## Manual Installation
 
 If you want to download the integration manually, create a new folder called emotiva under your custom_components folder in your config folder.  If the custom_components folder doesn't exist, create it first.  Once created, download the files and folders from the [github repo](https://github.com/peteS-UK/emotiva/tree/main/custom_components/emotiva) into this new emotiva folder.
 
 Once downloaded either via HACS or manually, restart your Home Assistant server.
-
-## Configuration
 
 Configuration is done through the Home Assistant UI.  Once you're installed the integration, go into your Integrations (under Settings, Devices & Services), select Add Integration, and choose the Emotiva Processor integration, or click the shortcut button below (requires My Homeassistant configured).
 
 [![Add Integration to your Home Assistant
 instance.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=emotiva)
 
+## Configuration
 
 This will display the configuration page.  
 
